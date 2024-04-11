@@ -1,4 +1,5 @@
 import pypulseq as pp
+from . import facade_impl as fi
 
 
 Opts = pp.Opts
@@ -47,4 +48,5 @@ def use_pulseqzero():
     global make_delay
     global calc_duration
     global calc_rf_center
-    
+    make_sinc_pulse = fi.make_sinc_pulse
+    make_trapezoid = fi.make_trapezoid
