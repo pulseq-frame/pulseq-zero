@@ -10,11 +10,11 @@ from . import facade
 
 
 def simulate(seq_func, mode="full", plot=False) -> torch.Tensor:
-    # facade.use_real_pypulseq = False
+    facade.use_pulseqzero()
     seq = seq_func()
-    facade.use_real_pypulseq = True
+    facade.use_pypulseq()
 
-    # TODO: return the mr0 sequence that is now contained in seq
+    # TODO: simulate the mr0 sequence that is now contained in seq
 
     return None
 
