@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from pypulseq import Opts
+from .. import facade_impl as fi
 
 
 """This code is a near identical copy of pypulseq 1.3.1post1, except that it is
@@ -36,7 +36,7 @@ def sqrt(x):
 
 def make_trapezoid(channel: str, amplitude: float = 0, area: float = None, delay: float = 0, duration: float = 0,
                    flat_area: float = 0, flat_time: float = -1, max_grad: float = 0, max_slew: float = 0,
-                   rise_time: float = 0, system: Opts = Opts()) -> Trapezoid:
+                   rise_time: float = 0, system: fi.Opts = fi.Opts()) -> Trapezoid:
     if channel not in ['x', 'y', 'z']:
         raise ValueError(f"Invalid channel. Must be one of `x`, `y` or `z`. Passed: {channel}")
 

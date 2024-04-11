@@ -48,5 +48,7 @@ def use_pulseqzero():
     global make_delay
     global calc_duration
     global calc_rf_center
+    Opts = fi.Opts
+    Sequence = fi.Sequence
     make_sinc_pulse = fi.make_sinc_pulse
     make_trapezoid = fi.make_trapezoid
