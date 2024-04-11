@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 import pulseqzero as pp0
-pp = pp0.pypulseqfacade
+pp = pp0.facade
 
 
 def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
@@ -122,11 +122,14 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # =========
     if write_seq:
         seq.write(seq_filename)
+    
+    return seq
 
 
 if __name__ == "__main__":
     # Generate Target with ideal CSF supression
-    target = pp0.simulate(main(torch.as_tensor(2.5), False, False), plot=True)
+    target = pp0.simulate(lambda: main(torch.as_tensor(2.5), False, False),
+                          plot=True)
     # Define loss function by comparing optimized and target reconstruction
     loss = lambda x: pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
     # Try to find the optimal inversion time with optimization

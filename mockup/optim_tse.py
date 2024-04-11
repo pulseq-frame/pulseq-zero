@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 import pulseqzero as pp0
-pp = pp0.pypulseqfacade
+pp = pp0.facade
 
 
 def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
@@ -327,15 +327,14 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # =========
     if write_seq:
         seq.write(seq_filename)
+    
+    return seq
 
 
 if __name__ == "__main__":
     # Generate target, disable T2 for ideal, blurring-free image
-    target = pp0.simulate(
-        main(torch.full((16, ), 180), False, False),
-        mode="no T2",
-        plot=True
-    )
+    target = pp0.simulate(lambda: main(torch.full((16, ), 180), False, False),
+                          mode="no T2", plot=True)
     # Define loss function by comparing optimized and target reconstruction
     loss = lambda x: pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
     # Optimize flip angles for 200 iterations, starting at 120°
