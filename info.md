@@ -35,7 +35,7 @@ Sub-categories:
 - [ ] Perfusion, Flow, MRA
 - [ ] Brain Function
 - [ ] Image Reconstruction
-- [ ] Sequence Development
+- [x] Sequence Development
 - [ ] Hardware & systems
 - [ ] Safety, patient compliance, other
 - [ ] Segmentation & Image analysis
