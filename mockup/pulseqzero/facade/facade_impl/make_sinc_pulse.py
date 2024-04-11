@@ -22,3 +22,5 @@ class SincPulse:
         self.phase = phase
         self.delay = delay
         self.duration = duration
+        # Some scripts rely on it but we don't care because we don't simulate it:
+        self.freq_offset = 0
