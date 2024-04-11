@@ -9,7 +9,7 @@ import torch
 from . import loss
 
 
-def simulate(seq_func, mode="full") -> torch.Tensor:
+def simulate(seq_func, mode="full", plot=False) -> torch.Tensor:
     return None
 
 

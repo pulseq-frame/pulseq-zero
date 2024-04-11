@@ -330,10 +330,12 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
 
 
 if __name__ == "__main__":
-    # Optimized parameter with the value used for the target
-    rf_flip = torch.full((16, ), 180)
     # Generate target, disable T2 for ideal, blurring-free image
-    target = pp0.simulate(main(rf_flip.numpy(), False, False), mode="no T2")
+    target = pp0.simulate(
+        main(torch.full((16, ), 180), False, False),
+        mode="no T2",
+        plot=True
+    )
     # Define loss function by comparing optimized and target reconstruction
     loss = lambda x: pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
     # Optimize flip angles for 200 iterations, starting at 120°
