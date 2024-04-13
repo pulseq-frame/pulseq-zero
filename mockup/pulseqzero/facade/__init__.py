@@ -50,8 +50,19 @@ def use_pulseqzero():
     global calc_rf_center
     Opts = fi.Opts
     Sequence = fi.Sequence
-    # make_block_pulse = fi.make_block_pulse
+    make_block_pulse = fi.make_block_pulse
     make_sinc_pulse = fi.make_sinc_pulse
     make_trapezoid = fi.make_trapezoid
-    # make_adc = fi.make_adc
+    # make_extended_trapezoid = fi.make_extended_trapezoid
+    make_extended_trapezoid = crash
+    make_adc = fi.make_adc
     make_delay = fi.make_delay
+    # calc_duration = fi.calc_duration
+    calc_duration = crash
+    # calc_rf_center = fi.calc_rf_center
+    calc_rf_center = crash
+
+
+# Helper so we can't accidentally miss providing a facade for something
+def crash(*args, **kwargs):
+    assert False
