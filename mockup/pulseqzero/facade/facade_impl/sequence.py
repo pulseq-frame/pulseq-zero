@@ -1,5 +1,5 @@
 class Sequence:
-    def __init__(self) -> None:
+    def __init__(self, system=None) -> None:
         self.blocks = []
 
     def add_block(self, *args):

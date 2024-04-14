@@ -1,9 +1,10 @@
 from .. import facade_impl as fi
 
-def make_sinc_pulse(flip_angle, system, duration, slice_thickness,
-                    apodization, time_bw_product, return_gz):
+def make_sinc_pulse(flip_angle, system, duration, slice_thickness, apodization,
+                    time_bw_product, return_gz=False, phase_offset=0.0, use=None,
+                    freq_offset=0.0):
     BW = time_bw_product / duration
-    pulse = SincPulse(flip_angle, 0.0, 0.0, duration)
+    pulse = SincPulse(flip_angle, phase_offset, 0.0, duration, freq_offset)
 
     if return_gz:
         amplitude = BW / slice_thickness
@@ -17,10 +18,13 @@ def make_sinc_pulse(flip_angle, system, duration, slice_thickness,
 
 
 class SincPulse:
-    def __init__(self, angle, phase, delay, duration) -> None:
+    def __init__(self, angle, phase_offset, delay, duration, freq_offset) -> None:
         self.angle = angle
-        self.phase = phase
+        self.phase_offset = phase_offset
         self.delay = delay
         self.duration = duration
-        # Some scripts rely on it but we don't care because we don't simulate it:
-        self.freq_offset = 0
+        self.freq_offset = freq_offset
+    
+    @property
+    def t_center(self):
+        return self.delay + self.duration / 2

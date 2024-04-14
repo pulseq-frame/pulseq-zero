@@ -24,6 +24,10 @@ class Trapezoid:
     @property
     def flat_area(self):
         return self.amplitude * self.flat_time
+    
+    @property
+    def duration(self):
+        return self.delay + self.rise_time + self.flat_time + self.fall_time
 
 
 # Need torch for differentiability, but will crash if not tensor...

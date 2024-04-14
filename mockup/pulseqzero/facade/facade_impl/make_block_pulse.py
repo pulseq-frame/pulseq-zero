@@ -8,3 +8,7 @@ class BlockPulse:
         self.phase = phase
         self.delay = delay
         self.duration = duration
+    
+    @property
+    def t_center(self):
+        return self.delay + self.duration / 2
