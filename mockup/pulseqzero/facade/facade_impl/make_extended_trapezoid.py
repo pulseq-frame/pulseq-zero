@@ -7,6 +7,10 @@ class ExtendedTrapezoid:
     @property
     def duration(self):
         return self.times[-1] + self.times[1] - self.times[0]
+    
+    @property
+    def area(self):
+        raise NotImplementedError
 
 
 def make_extended_trapezoid(channel, amplitudes, times) -> ExtendedTrapezoid:
