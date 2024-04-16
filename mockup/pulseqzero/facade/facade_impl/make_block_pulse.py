@@ -3,9 +3,9 @@ def make_block_pulse(flip_angle, duration, system):
 
 
 class BlockPulse:
-    def __init__(self, angle, phase, delay, duration) -> None:
+    def __init__(self, angle, phase_offset, delay, duration) -> None:
         self.angle = angle
-        self.phase = phase
+        self.phase_offset = phase_offset
         self.delay = delay
         self.duration = duration
     

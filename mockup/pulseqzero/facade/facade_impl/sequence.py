@@ -77,7 +77,9 @@ class Sequence:
 
 
 class TmpPulse:
-    pass
+    def __init__(self, angle, phase) -> None:
+        self.angle = angle
+        self.phase = phase
 
 class TmpSpoiler:
     def __init__(self, duration, gx, gy, gz) -> None:
@@ -102,7 +104,22 @@ class TmpAdc:
 
 
 def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSpoiler]:
-    return []
+    t = rf.delay + rf.duration / 2
+    duration = max([x.duration for x in [rf, grad_x, grad_y, grad_z] if x is not None])
+
+    gx1 = gx2 = gy1 = gy2 = gz1 = gz2 = 0.0
+    if grad_x:
+        gx1, gx2 = split_gradm(grad_x, t)
+    if grad_y:
+        gy1, gy2 = split_gradm(grad_y, t)
+    if grad_z:
+        gz1, gz2 = split_gradm(grad_z, t)
+
+    return (
+        TmpSpoiler(t, gx1, gy1, gz1),
+        TmpPulse(rf.angle, rf.phase_offset),
+        TmpSpoiler(duration - t, gx2, gy2, gz2)
+    )
 
 
 def parse_spoiler(delay, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler]:
@@ -110,7 +127,7 @@ def parse_spoiler(delay, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler]:
     gx = grad_x.area if grad_x is not None else 0.0
     gy = grad_y.area if grad_y is not None else 0.0
     gz = grad_z.area if grad_z is not None else 0.0
-    return [TmpSpoiler(duration, gx, gy, gz)]
+    return (TmpSpoiler(duration, gx, gy, gz), )
 
 
 def parse_adc(adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
@@ -131,33 +148,46 @@ def parse_adc(adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
 
     event_time = torch.diff(time)
     gradm = torch.diff(gradm, dim=0)
-    return TmpAdc(event_time[:, -1], gradm[:,-1, :], adc.phase)
+    return (
+        TmpAdc(event_time[:-1], gradm[:-1, :], adc.phase_offset),
+        TmpSpoiler(event_time[-1], gradm[-1, 0], gradm[-1, 1], gradm[-1, 2])
+    )
 
 
-# TODO: make this differentiable...
-# https://www.desmos.com/calculator?lang=de
-# Maybe either approximate the trapezoid with polynomials or sigmods,
-# or manually define the deriviates.
-# Note that the torch.vmap used in parse_adc does not work with if statements,
-# but we could swap the vmap if this is too complicated and wait with the
-# differentiablity for future sequences (is not needed for the ESMRMB optimizations)
+def split_gradm(grad, t):
+    before = integrate(grad, t)
+    total = integrate(grad, float("inf"))
+    return (before, total - before)
+
+
 def integrate(grad, t):
     if isinstance(grad, Trapezoid):
-        t -= grad.delay
-        total = grad.rise_time/2 + grad.flat_time + grad.fall_time/2
+        # heaviside could be replaced with error function for differentiability
+        def h(x):
+            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5))
 
-        if t <= 0.0:
-            integral = 0.0
-        elif t < grad.rise_time:
-            integral = 0.5*t**2 / grad.rise_time
-        elif t < grad.rise_time + grad.flat_time:
-            t -= grad.rise_time
-            integral = grad.rise_time/2 + t
-        elif t < grad.rise_time + grad.flat_time + grad.fall_time:
-            t = grad.rise_time + grad.flat_time + grad.fall_time - t
-            integral = total - 0.5*t**2 / grad.fall_time
-        else:
-            integral = total
-        return grad.amplitude * integral
+        # https://www.desmos.com/calculator/0q5co02ecm
+
+        d = grad.delay
+        t1 = grad.rise_time
+        t2 = grad.flat_time
+        t3 = grad.fall_time
+        T1 = d + t1
+        T12 = d + t1 + t2
+        T123 = d + t1 + t2 + t3
+
+        # Trapezoid, could be provided as derivative:
+        # f1 = h(t - d) * h(T1 - t) * (t - d) / t1
+        # f2 = h(t - T1) * h(T12 - t)
+        # f3 = h(t - T12) * h(T123 - t) * (T123 - t) / t3
+        # f = grad.amplitude * (f1 + f2 + f3)
+
+        F_inf = t1 / 2 + t2 + t3 / 3
+        F1 = h(t - d) * h(T1 - t) * 0.5 * (t - d)**2 / t1
+        F2 = h(t - T1) * h(T12 - t) * (t1 / 2 + t - T1)
+        F3 = h(t - T12) * h(T123 - t) * (F_inf - 0.5 * (T123 - t)**2 / t2)
+        F = grad.amplitude * (F1 + F2 + F3 + h(t - T123) * F_inf)
+
+        return F
     else:
         raise NotImplementedError
