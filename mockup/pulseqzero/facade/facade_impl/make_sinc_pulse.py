@@ -11,6 +11,7 @@ def make_sinc_pulse(flip_angle, system, duration, slice_thickness, apodization,
         area = amplitude * duration
         gz = fi.make_trapezoid(channel='z', system=system, flat_time=duration, flat_area=area)
         gzr = fi.make_trapezoid(channel='z', system=system, area=-0.5 * gz.area)
+        pulse.delay = gz.rise_time
 
         return pulse, gz, gzr
     else:

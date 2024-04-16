@@ -1,4 +1,6 @@
 import torch
+import MRzeroCore as mr0
+from copy import copy
 
 from .make_adc import Adc
 from .make_block_pulse import BlockPulse
@@ -12,7 +14,7 @@ class Sequence:
         self.blocks = []
 
     def add_block(self, *args):
-        self.blocks.append(args)
+        self.blocks.append([copy(arg) for arg in args])
 
     def check_timing(self):
         return True, []
@@ -23,7 +25,7 @@ class Sequence:
     def plot(self):
         pass
 
-    def to_mr0(self):
+    def to_mr0(self) -> mr0.Sequence:
         seq = []
 
         for block in self.blocks:
@@ -67,13 +69,47 @@ class Sequence:
             else:
                 seq += parse_spoiler(delay, grad_x, grad_y, grad_z)
 
-        for block in seq:
-            print(block)
+        reps = []
+        rep = []
+        for ev in seq:
+            if isinstance(ev, TmpPulse):
+                rep = []
+                reps.append(rep)
+            rep.append(ev)
+        
+        seq = mr0.Sequence()
+        for rep_in in reps:
+            event_count = 0
+            for ev in rep_in:
+                if isinstance(ev, TmpAdc):
+                    event_count += len(ev.event_time)
+                else:
+                    event_count += 1
 
+            rep_out = seq.new_rep(event_count)
+            rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
+            rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
+            if rep_out.pulse.angle > 100 * torch.pi / 180:
+                rep_out.pulse.usage = mr0.PulseUsage.REFOC
+            else:
+                rep_out.pulse.usage = mr0.PulseUsage.EXCIT
 
-# Copy the pypulseq importer logic here:
-# we want an intermediate representation so we avoid appending to an mr0
-# sequence all the time.
+            i = 0
+            for ev in rep_in[1:]:
+                if isinstance(ev, TmpSpoiler):
+                    rep_out.event_time[i] = ev.duration
+                    rep_out.gradm[i, :] = ev.gradm
+                    i += 1
+                else:
+                    assert isinstance(ev, TmpAdc)
+                    num = len(ev.event_time)
+                    rep_out.event_time[i:i+num] = torch.as_tensor(ev.event_time)
+                    rep_out.gradm[i:i+num, :] = torch.as_tensor(ev.gradm)
+                    rep_out.adc_phase[i:i+num] = torch.pi / 2 - ev.phase
+                    rep_out.adc_usage[i:i+num] = 1
+                    i += num
+        
+        return seq
 
 
 class TmpPulse:
@@ -114,6 +150,8 @@ def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSp
         gy1, gy2 = split_gradm(grad_y, t)
     if grad_z:
         gz1, gz2 = split_gradm(grad_z, t)
+    
+    print(gx1, gx2, gy1, gy2, gz1, gz2)
 
     return (
         TmpSpoiler(t, gx1, gy1, gz1),
@@ -156,7 +194,7 @@ def parse_adc(adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
 
 def split_gradm(grad, t):
     before = integrate(grad, t)
-    total = integrate(grad, float("inf"))
+    total = integrate(grad, 1e9)  # Infinity produces 0*inf = NaNs internally
     return (before, total - before)
 
 
@@ -182,10 +220,10 @@ def integrate(grad, t):
         # f3 = h(t - T12) * h(T123 - t) * (T123 - t) / t3
         # f = grad.amplitude * (f1 + f2 + f3)
 
-        F_inf = t1 / 2 + t2 + t3 / 3
+        F_inf = t1 / 2 + t2 + t3 / 2
         F1 = h(t - d) * h(T1 - t) * 0.5 * (t - d)**2 / t1
         F2 = h(t - T1) * h(T12 - t) * (t1 / 2 + t - T1)
-        F3 = h(t - T12) * h(T123 - t) * (F_inf - 0.5 * (T123 - t)**2 / t2)
+        F3 = h(t - T12) * h(T123 - t) * (F_inf - 0.5 * (T123 - t)**2 / t3)
         F = grad.amplitude * (F1 + F2 + F3 + h(t - T123) * F_inf)
 
         return F
