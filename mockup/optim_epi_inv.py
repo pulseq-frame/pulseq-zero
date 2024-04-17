@@ -131,9 +131,10 @@ if __name__ == "__main__":
     target = pp0.simulate(lambda: main(torch.as_tensor(2.5), False, False),
                           plot=True)
     # Define loss function by comparing optimized and target reconstruction
-    loss = lambda x: pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
+    def loss(x):
+        return pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
     # Try to find the optimal inversion time with optimization
     TI = pp0.optimize(loss, 200, torch.as_tensor(1.0), 0.01)
 
     # Export the sequence with fluid supression
-    main(TI, plot=True, write_seq=True, seq_filename="tse_optimized.seq")
+    # main(TI, plot=True, write_seq=True, seq_filename="tse_optimized.seq")

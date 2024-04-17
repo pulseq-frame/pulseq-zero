@@ -109,6 +109,7 @@ class Sequence:
                     rep_out.adc_usage[i:i+num] = 1
                     i += num
         
+        seq.normalized_grads = False
         return seq
 
 
