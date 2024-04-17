@@ -130,8 +130,6 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
 # OPTIMIZATION
 # ============
 
-# The following code will not be included in the Abstract, it could be provided
-# by pulseqzero and is just for nice plotting for this optimization.
 TI_hist = []
 avg_hist = []
 csf_hist = []

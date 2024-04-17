@@ -1,4 +1,5 @@
 from typing import Callable
+from contextlib import contextmanager
 
 # Fix for older pypulseq versions with newer numpy versions
 import numpy as np
@@ -18,10 +19,18 @@ sim_data = phantom.build()
 max_signal = phantom.PD.sum()
 
 
-def simulate(seq_func: Callable[[], facade.Sequence], plot=False) -> torch.Tensor:
+@contextmanager
+def pp_intercept():
     facade.use_pulseqzero()
-    seq = seq_func().to_mr0()
-    facade.use_pypulseq()
+    try:
+        yield
+    finally:
+        facade.use_pypulseq()
+
+
+def simulate(seq_func: Callable[[], facade.Sequence], plot=False) -> torch.Tensor:
+    with pp_intercept():
+        seq = seq_func().to_mr0()
 
     for rep in seq:
         rep.gradm[:, 2] = 0

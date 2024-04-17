@@ -8,7 +8,7 @@ import pulseqzero as pp0
 pp = pp0.facade
 
 
-def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
+def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
          seq_filename: str = "tse_pypulseq.seq"):
     # ======
     # SETUP
@@ -33,7 +33,7 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     n_slices = 1
     slice_thickness = 5e-3
     TE = 12e-3  # Echo time
-    TR = 2000e-3  # Repetition time
+    # TR = 2000e-3  # Repetition time
 
     sampling_time = 6.4e-3
     readout_time = sampling_time + 2 * system.adc_dead_time
@@ -283,7 +283,7 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
                 )
                 # Recreate to update flip angle
                 rf_ref = pp.make_sinc_pulse(
-                    flip_angle=rf_flip[k_echo] * np.pi / 180,
+                    flip_angle=rf_flip[k_echo + k_ex * n_echo] * np.pi / 180,
                     system=system,
                     duration=t_ref_pulse,
                     slice_thickness=slice_thickness,
@@ -331,11 +331,56 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     return seq
 
 
-if __name__ == "__main__":
-    # Generate target, disable T2 for ideal, blurring-free image
-    target = 0.8 * pp0.simulate(lambda: main(torch.full((16, ), 180), False, False), plot=True)
-    # Optimize flip angles for 200 iterations, starting at 120°
-    rf_flip = pp0.optimize(lambda x: main(x, False, False), target, 10, torch.full((16, ), 120.0), 1)
+# ============
+# OPTIMIZATION
+# ============
 
-    # Export the sequence with the now optimized flip angles
-    main(rf_flip, plot=True, write_seq=True, seq_filename="tse_optimized.seq")
+target_TR = 2
+optim_TR = 0.3
+target = 0.1 * pp0.simulate(lambda: main(torch.full((144, ), 120), False, False, TR=target_TR), True)
+start = pp0.simulate(lambda: main(torch.full((144, ), 120), False, False, TR=optim_TR), True)
+
+flip_hist = np.zeros((150, 144))
+loss_hist = []
+def update(flips, reco, iter):
+    loss = ((target.abs() - reco.abs())**2).mean()
+
+    flip_hist[iter:, :] = flips.clone().detach()[None, :]
+    loss_hist.append(loss.detach())
+
+    if iter % 10 == 9:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10, 6), dpi=120)
+        plt.subplot(231)
+        plt.title("Start")
+        plt.imshow(start.abs().T, origin="lower", vmin=0, vmax=target.abs().max())
+        plt.subplot(232)
+        plt.title("Target")
+        plt.imshow(target.abs().T, origin="lower", vmin=0, vmax=target.abs().max())
+        plt.axis("off")
+        plt.subplot(233)
+        plt.title("Optimized")
+        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0, vmax=target.abs().max())
+        plt.axis("off")
+        plt.subplot(223)
+        plt.title("Flip Angles")
+        cmap = plt.get_cmap("viridis")
+        for i in range(144):
+            plt.plot(flip_hist[:, i], c=cmap(i/144))
+        plt.xlabel("Iteration")
+        plt.grid()
+        plt.subplot(224)
+        plt.title("Loss")
+        plt.plot(loss_hist)
+        plt.xlabel("Iteration")
+        plt.grid()
+        plt.show()
+    
+    return loss
+
+
+# Try to match the target with a TR of 2s with a sequence with a shorter TR
+flips = torch.full((144, ), 120.0)
+flips = pp0.optimize(lambda x: main(x, False, False, TR=optim_TR), update, 150, flips, 0.1)
+# Export the sequence with the now optimized flip angles
+main(flips, plot=True, write_seq=True, TR=optim_TR, seq_filename="tse_optimized.seq")
