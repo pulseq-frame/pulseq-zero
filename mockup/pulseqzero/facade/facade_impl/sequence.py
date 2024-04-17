@@ -151,8 +151,6 @@ def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSp
         gy1, gy2 = split_gradm(grad_y, t)
     if grad_z:
         gz1, gz2 = split_gradm(grad_z, t)
-    
-    print(gx1, gx2, gy1, gy2, gz1, gz2)
 
     return (
         TmpSpoiler(t, gx1, gy1, gz1),
