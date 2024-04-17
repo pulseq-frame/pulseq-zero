@@ -126,11 +126,53 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     return seq
 
 
-if __name__ == "__main__":
-    # Generate Target with ideal CSF supression
-    target = pp0.simulate(lambda: main(torch.as_tensor(2.5), False, False), plot="Target")
-    # Try to find the optimal inversion time with optimization
-    TI = pp0.optimize(lambda x: main(x, False, False), target, 200, torch.as_tensor(1.0), 0.05)
+# ============
+# OPTIMIZATION
+# ============
 
-    # Export the sequence with fluid supression
-    main(TI, plot=True, write_seq=True, seq_filename="epi_optimized.seq")
+# The following code will not be included in the Abstract, it could be provided
+# by pulseqzero and is just for nice plotting for this optimization.
+TI_hist = []
+avg_hist = []
+csf_hist = []
+loss_hist = []
+def update(TI, reco, iter):
+    avg = reco.abs().mean()
+    csf = reco[31, 40].abs()
+    loss = csf - avg
+
+    TI_hist.append(TI.clone().detach())
+    avg_hist.append(avg.detach())
+    csf_hist.append(csf.detach())
+    loss_hist.append(loss.detach())
+
+    if iter % 10 == 9:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10, 3), dpi=120)
+        plt.subplot(131)
+        plt.title("Reconstruction")
+        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
+        plt.axis("off")
+        plt.subplot(132)
+        plt.title("Inversion Time [s]")
+        plt.plot(TI_hist)
+        plt.xlabel("Iteration")
+        plt.grid()
+        plt.subplot(133)
+        plt.title("Loss")
+        plt.plot(loss_hist, label="loss")
+        plt.plot(avg_hist, label="mean signal")
+        plt.plot(csf_hist, label="csf signal")
+        plt.xlabel("Iteration")
+        plt.grid()
+        plt.legend()
+        plt.show()
+    
+    return loss
+
+
+# Try to find the optimal inversion time with optimization
+TI = pp0.optimize(lambda x: main(x, False, False), update, 150, torch.as_tensor(1.0), 0.05)
+# Export the sequence with fluid supression
+main(TI, plot=True, write_seq=True, seq_filename="epi_optimized.seq")
+ 

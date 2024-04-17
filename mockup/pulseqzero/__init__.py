@@ -13,7 +13,12 @@ import MRzeroCore as mr0
 import matplotlib.pyplot as plt
 
 
-def simulate(seq_func: Callable[[], facade.Sequence], mode="full", plot=None) -> torch.Tensor:
+phantom = mr0.VoxelGridPhantom.brainweb("subject04.npz").interpolate(64, 64, 32).slices([15])
+sim_data = phantom.build()
+max_signal = phantom.PD.sum()
+
+
+def simulate(seq_func: Callable[[], facade.Sequence], plot=False) -> torch.Tensor:
     facade.use_pulseqzero()
     seq = seq_func().to_mr0()
     facade.use_pypulseq()
@@ -21,23 +26,13 @@ def simulate(seq_func: Callable[[], facade.Sequence], mode="full", plot=None) ->
     for rep in seq:
         rep.gradm[:, 2] = 0
 
-    # seq.plot_kspace_trajectory()
-
-    phantom = mr0.VoxelGridPhantom.brainweb("subject04.npz")
-    data = phantom.interpolate(64, 64, 32).slices([15]).build()
-
-    if mode == "no T2":
-        data.T2[:] = 1e9
-
-    graph = mr0.compute_graph(seq, data, 5000, 1e-4)
-    signal = mr0.execute_graph(graph, seq, data, 0.01, 0.01)
-    reco = mr0.reco_adjoint(signal, seq.get_kspace(), (64, 64, 1), phantom.size)[:, :, 0]
-
-    # Automatic kspace reordering function in MRzeroCore would be great
+    graph = mr0.compute_graph(seq, sim_data, 1000, 1e-3)
+    signal = mr0.execute_graph(graph, seq, sim_data, 0.01, 0.01)
+    reco = mr0.reco_adjoint(signal, seq.get_kspace(), (64, 64, 1), phantom.size)
+    reco = reco[:, :, 0] / max_signal
 
     if plot:
         plt.figure()
-        plt.suptitle(plot)
         plt.subplot(221)
         plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
         plt.subplot(222)
@@ -51,7 +46,9 @@ def simulate(seq_func: Callable[[], facade.Sequence], mode="full", plot=None) ->
     return reco
 
 
-def optimize(seq_func: Callable[[torch.Tensor], facade.Sequence], target: torch.Tensor, iters, param: torch.Tensor, lr):
+def optimize(seq_func: Callable[[torch.Tensor], facade.Sequence],
+             update_func: Callable[[torch.Tensor, torch.Tensor, int], torch.Tensor],
+             iters: int, param: torch.Tensor, lr):
     param.requires_grad = True
     params = [
         {"params": param, "lr": lr}
@@ -60,28 +57,8 @@ def optimize(seq_func: Callable[[torch.Tensor], facade.Sequence], target: torch.
 
     for i in range(iters):
         optimizer.zero_grad()
-        plot = i % 10 == 0 or i == iters - 1
-        iter_str = f"Iteration {i+1} / {iters} - {param}"
-        print(iter_str)
-        reco = simulate(lambda: seq_func(param), "full")
-        loss = ((target - reco).abs()**2).mean()
-        print(f" > Loss: {loss}")
-
-        if plot:
-            plt.figure()
-            plt.suptitle(f"{loss} - {param}")
-            plt.subplot(221)
-            plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
-            plt.colorbar()
-            plt.subplot(222)
-            plt.imshow(reco.detach().angle().T, origin="lower", cmap="twilight", vmin=-np.pi, vmax=np.pi)
-            plt.subplot(223)
-            plt.imshow(target.detach().abs().T, origin="lower", vmin=0)
-            plt.colorbar()
-            plt.subplot(224)
-            plt.imshow(target.detach().angle().T, origin="lower", cmap="twilight", vmin=-np.pi, vmax=np.pi)
-            plt.show()
-
+        reco = simulate(lambda: seq_func(param))
+        loss = update_func(param, reco, i)
         loss.backward()
         optimizer.step()
     
