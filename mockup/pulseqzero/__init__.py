@@ -11,13 +11,15 @@ from . import facade
 
 import MRzeroCore as mr0
 import matplotlib.pyplot as plt
-from contextlib import redirect_stdout
 
 
 def simulate(seq_func: Callable[[], facade.Sequence], mode="full", plot=None) -> torch.Tensor:
     facade.use_pulseqzero()
     seq = seq_func().to_mr0()
     facade.use_pypulseq()
+
+    for rep in seq:
+        rep.gradm[:, 2] = 0
 
     # seq.plot_kspace_trajectory()
 
@@ -36,10 +38,14 @@ def simulate(seq_func: Callable[[], facade.Sequence], mode="full", plot=None) ->
     if plot:
         plt.figure()
         plt.suptitle(plot)
-        plt.subplot(121)
+        plt.subplot(221)
         plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
-        plt.subplot(122)
+        plt.subplot(222)
         plt.imshow(reco.detach().angle().T, origin="lower", cmap="twilight", vmin=-np.pi, vmax=np.pi)
+        plt.subplot(212)
+        plt.plot(signal.detach().real)
+        plt.plot(signal.detach().imag)
+        plt.grid()
         plt.show()
 
     return reco
@@ -79,4 +85,4 @@ def optimize(seq_func: Callable[[torch.Tensor], facade.Sequence], target: torch.
         loss.backward()
         optimizer.step()
     
-    return param
+    return param.detach().numpy()

@@ -333,12 +333,9 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
 
 if __name__ == "__main__":
     # Generate target, disable T2 for ideal, blurring-free image
-    target = pp0.simulate(lambda: main(torch.full((16, ), 180), False, False),
-                          mode="no T2", plot=True)
-    # Define loss function by comparing optimized and target reconstruction
-    loss = lambda x: pp0.loss.L2(target, pp0.simulate(main(x, False, False)))
+    target = 0.8 * pp0.simulate(lambda: main(torch.full((16, ), 180), False, False), plot=True)
     # Optimize flip angles for 200 iterations, starting at 120°
-    rf_flip = pp0.optimize(loss, 200, torch.full((16, ), 120), 0.01)
+    rf_flip = pp0.optimize(lambda x: main(x, False, False), target, 10, torch.full((16, ), 120.0), 1)
 
     # Export the sequence with the now optimized flip angles
     main(rf_flip, plot=True, write_seq=True, seq_filename="tse_optimized.seq")

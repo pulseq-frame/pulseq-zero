@@ -226,5 +226,26 @@ def integrate(grad, t):
         F = grad.amplitude * (F1 + F2 + F3 + h(t - T123) * F_inf)
 
         return F
+    elif isinstance(grad, ExtendedTrapezoid):
+        # To stay differentiable, we don't want dynamic indexing, but instead
+        # calculate, how much of every segment of the gradient contributes
+        # https://www.desmos.com/calculator/j2vopzhb2z
+
+        # Start and end time point and amplitude of all line segments
+        t1 = torch.as_tensor(grad.times[:-1])
+        t2 = torch.as_tensor(grad.times[1:])
+        c1 = torch.as_tensor(grad.amplitudes[:-1])
+        c2 = torch.as_tensor(grad.amplitudes[1:])
+
+        # This is how much of every segment contributes, clamped to [0, width]
+        t_rel = torch.clamp(t - t1, 0 * t1, t2 - t1)
+        # The amplitude of the segment at t, will be clamped to the amplitude
+        # of the right point for segments before t and the left point for
+        # segments after; only one segment where t lies in will be interpolated
+        c_end = c1 + t_rel / (t2 - t1) * (c2 - c1)
+        # For integration, we calculate the area of the rectangle with the
+        # average height of the left and right side of the actual shape
+        c_avg = 0.5 * (c1 + c_end)
+        return (t_rel * c_avg).sum()
     else:
         raise NotImplementedError

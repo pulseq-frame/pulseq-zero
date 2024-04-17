@@ -128,10 +128,9 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
 
 if __name__ == "__main__":
     # Generate Target with ideal CSF supression
-    target = pp0.simulate(lambda: main(torch.as_tensor(2.5), False, False),
-                          plot="Target")
+    target = pp0.simulate(lambda: main(torch.as_tensor(2.5), False, False), plot="Target")
     # Try to find the optimal inversion time with optimization
     TI = pp0.optimize(lambda x: main(x, False, False), target, 200, torch.as_tensor(1.0), 0.05)
 
     # Export the sequence with fluid supression
-    # main(TI, plot=True, write_seq=True, seq_filename="tse_optimized.seq")
+    main(TI, plot=True, write_seq=True, seq_filename="epi_optimized.seq")
