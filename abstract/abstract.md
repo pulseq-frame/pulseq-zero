@@ -39,7 +39,7 @@ Minimizing this loss means trying to lower all RF amplitudes while still keeping
 
 Both sequences were executed as single-slice with a resolution of 64² on a quantified brain phantom[6] with a resolution of 96².
 
-### Results (775 /774)
+### Results (775)
 Applying the Pulseq-zero optimization loop (figure 1) to the EPI sequence leads to the results shown in figure 2. An appropriate inversion time for fluid suppression was found. While this specific example is easy to compute analytically, a quick convergence of the optimization process is demonstrated. Loss functions can be constructed to target any desired tissue contrast to automatically adjust sequences accordingly, taking all dynamics influencing the image into account.
 
 Figure 2 shows the results of the TSE optimization. Convergence is worse as image artifacts can be very sensitive to small changes in the flip angles, while the SAR loss is much more stable. Nevertheless, SAR could be reduced by nearly half without degrading the image quality in a noticeable way. 
@@ -62,17 +62,24 @@ In addition, because the sequence definition is fully compatible with PyPulseq ,
 ## Figures (827/1000)
 
 ![Figure 1](schematic.png)
+
 Figure 1:
 By wrapping any PyPulseq script into Pulseq-zero, it can be integrated into the MR-zero optimization loop:
 parameters used for the sequence definition are traced through the whole simulation and loss calculation, which can be based on sequence properties or the reconstructed image.
 Backpropagation of the final loss allows to efficiently optimize the sequence parameters with gradient descent.
 
+---
+
 ![Figure 2](flair_optim.png)
+
 Figure 2:
 Automatic FLAIR:
 The time between an initial inversion pulse and the excitation pulse of the subsequent EPI readout is adjusted in order to minimize the CSF signal with regard to the average brain signal.
 
+---
+
 ![Figure 3](tse_optim.png)
+
 Figure 3:
 TSE flip angle optimization with the goal of minimizing SAR while keeping the reconstruction close to the original sequence.
 At iteration 233, SAR could be reduced by 43%, only afterwards the image quality started to deteriorate.
