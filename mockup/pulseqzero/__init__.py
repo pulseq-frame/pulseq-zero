@@ -14,8 +14,35 @@ import MRzeroCore as mr0
 import matplotlib.pyplot as plt
 
 
-phantom = mr0.VoxelGridPhantom.brainweb("subject04.npz").interpolate(64, 64, 32).slices([15])
-sim_data = phantom.build()
+# Nam quantification phantom, should store as .npz instead
+path = "W:/radiologie/mr-physik-data/Mitarbeiter/Zaiss_AG/Vorträge Gruppensitzung AG Zaiss/Konferenzbeiträge/2024_ESMRMB/Endres/"
+data = torch.load(path + "nam.pt").detach()
+data_B0 = torch.load(path + "nam_B0.pt").detach()
+data_acs = torch.load(path + "image_acs.pt").detach()
+
+PD = data_acs / data_acs.max()
+PD[PD < 0.2] = 0
+T1 = data[..., 0].clamp(0, 5)
+T2 = data[..., 1].clamp(0, 1.5)
+T2dash = data[..., 2].clamp(0, 0.5)
+B1 = data[..., 3].clamp(0, 1.5)[None, ...]
+D = data[..., 4].clamp(0, 4)
+B0 = data_B0[..., 0].clamp(-50, 50)
+coil_sens = torch.ones(1, *PD.shape)
+
+mask = PD > 0.2
+PD[~mask] = 0
+T1[~mask] = 0
+T2[~mask] = 0
+T2dash[~mask] = 0
+D[~mask] = 0
+B0[~mask] = 0
+B1[:, ~mask] = 0
+
+
+phantom = mr0.VoxelGridPhantom(PD, T1, T2, T2dash, D, B0, B1, coil_sens, torch.tensor([0.2, 0.2, 0.008]))
+# phantom = mr0.VoxelGridPhantom.brainweb("subject04.npz").interpolate(64, 64, 32).slices([15])
+sim_data = phantom.build().cuda()
 max_signal = phantom.PD.sum()
 
 
@@ -35,21 +62,25 @@ def simulate(seq_func: Callable[[], facade.Sequence], plot=False) -> torch.Tenso
     for rep in seq:
         rep.gradm[:, 2] = 0
 
-    graph = mr0.compute_graph(seq, sim_data, 1000, 1e-3)
-    signal = mr0.execute_graph(graph, seq, sim_data, 0.01, 0.01)
+    graph = mr0.compute_graph(seq, sim_data, 1000, 1e-7)
+    signal = mr0.execute_graph(graph, seq.cuda(), sim_data, 1e-3, 1e-4).cpu()
     reco = mr0.reco_adjoint(signal, seq.get_kspace(), (64, 64, 1), phantom.size)
     reco = reco[:, :, 0] / max_signal
 
     if plot:
-        plt.figure()
-        plt.subplot(221)
-        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
-        plt.subplot(222)
-        plt.imshow(reco.detach().angle().T, origin="lower", cmap="twilight", vmin=-np.pi, vmax=np.pi)
-        plt.subplot(212)
+        plt.figure(figsize=(7, 7), dpi=120)
+        plt.subplot(211)
         plt.plot(signal.detach().real)
         plt.plot(signal.detach().imag)
         plt.grid()
+        plt.subplot(223)
+        plt.title("Magnitude")
+        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0, cmap="gray")
+        plt.axis("off")
+        plt.subplot(224)
+        plt.title("Phase")
+        plt.imshow(reco.detach().angle().T, origin="lower", cmap="twilight", vmin=-np.pi, vmax=np.pi)
+        plt.axis("off")
         plt.show()
 
     return reco
