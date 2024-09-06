@@ -2,6 +2,9 @@ import math
 import warnings
 
 import numpy as np
+np.int = int
+np.float = float
+np.complex = complex
 
 import pypulseq as pp
 
@@ -24,8 +27,8 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "tse_pypulseq.seq"):
     )
 
     seq = pp.Sequence(system)  # Create a new sequence object
-    fov = 256e-3  # Define FOV and resolution
-    Nx, Ny = 128, 128
+    fov = 0.192  # Define FOV and resolution
+    Nx, Ny = 64, 64
     n_echo = 16  # Number of echoes
     n_slices = 1
     rf_flip = 180  # Flip angle

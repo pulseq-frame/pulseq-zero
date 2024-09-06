@@ -16,7 +16,7 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # ======
     seq = pp.Sequence()  # Create a new sequence object
     # Define FOV and resolution
-    fov = 220e-3
+    fov = 192e-3
     Nx = 64
     Ny = 64
     slice_thickness = 3e-3  # Slice thickness
@@ -130,13 +130,16 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
 # OPTIMIZATION
 # ============
 
+start = pp0.simulate(lambda: main(torch.as_tensor(1.0), False, False), True)
+
 TI_hist = []
 avg_hist = []
 csf_hist = []
 loss_hist = []
+
 def update(TI, reco, iter):
     avg = reco.abs().mean()
-    csf = reco[31, 40].abs()
+    csf = reco[33, 37].abs()
     loss = csf - avg
 
     TI_hist.append(TI.clone().detach())
@@ -146,24 +149,29 @@ def update(TI, reco, iter):
 
     if iter % 10 == 9:
         import matplotlib.pyplot as plt
-        plt.figure(figsize=(10, 3), dpi=120)
-        plt.subplot(131)
-        plt.title("Reconstruction")
-        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0)
+        vmax = max(start.abs().max(), reco.abs().max().detach())
+        plt.figure(figsize=(7, 5), dpi=120)
+        plt.subplot(221)
+        plt.title("Start")
+        plt.imshow(start.abs().T, origin="lower", vmin=0, cmap="gray")
         plt.axis("off")
-        plt.subplot(132)
+        plt.subplot(222)
+        plt.title("Optimized")
+        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0, cmap="gray")
+        plt.axis("off")
+        plt.subplot(223)
         plt.title("Inversion Time [s]")
         plt.plot(TI_hist)
         plt.xlabel("Iteration")
         plt.grid()
-        plt.subplot(133)
+        plt.subplot(224)
         plt.title("Loss")
         plt.plot(loss_hist, label="loss")
         plt.plot(avg_hist, label="mean signal")
         plt.plot(csf_hist, label="csf signal")
         plt.xlabel("Iteration")
         plt.grid()
-        plt.legend()
+        plt.legend(loc="upper right")
         plt.show()
     
     return loss

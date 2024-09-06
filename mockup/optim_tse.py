@@ -19,7 +19,7 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
     system = pp.Opts(
         max_grad=32,
         grad_unit="mT/m",
-        max_slew=130,
+        max_slew=130,  
         slew_unit="T/m/s",
         rf_ringdown_time=100e-6,
         rf_dead_time=100e-6,
@@ -27,8 +27,8 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
     )
 
     seq = pp.Sequence(system)  # Create a new sequence object
-    fov = 256e-3  # Define FOV and resolution
-    Nx, Ny = 128, 128
+    fov = 0.192  # Define FOV and resolution
+    Nx, Ny = 64, 64
     n_echo = 16  # Number of echoes
     n_slices = 1
     slice_thickness = 5e-3
@@ -37,8 +37,8 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
 
     sampling_time = 6.4e-3
     readout_time = sampling_time + 2 * system.adc_dead_time
-    t_ex = 2.5e-3
-    t_exwd = t_ex + system.rf_ringdown_time + system.rf_dead_time
+    t_ex_pulse = 2.5e-3
+    t_exwd = t_ex_pulse + system.rf_ringdown_time + system.rf_dead_time
     t_ref_pulse = 2e-3
     t_refwd = t_ref_pulse + system.rf_ringdown_time + system.rf_dead_time
     t_sp = 0.5 * (TE - readout_time - t_refwd)
@@ -52,17 +52,16 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
     # ======
     # CREATE EVENTS
     # ======
-    flip_ex = 90 * np.pi / 180
     rf_ex, gz, _ = pp.make_sinc_pulse(
-        flip_angle=flip_ex,
+        flip_angle=np.pi / 2,
         system=system,
-        duration=t_ex,
+        duration=t_ex_pulse,
         slice_thickness=slice_thickness,
         apodization=0.5,
         time_bw_product=4,
         phase_offset=rf_ex_phase,
         return_gz=True,
-    )
+    ) # type: ignore
     gs_ex = pp.make_trapezoid(
         channel="z",
         system=system,
@@ -257,6 +256,18 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
                 - 2 * np.pi * rf_ref.freq_offset * pp.calc_rf_center(rf_ref)[0]
             )
 
+            rf_ex, gz, _ = pp.make_sinc_pulse(
+                flip_angle=rf_flip[k_ex] * np.pi / 180,
+                system=system,
+                duration=t_ex_pulse,
+                slice_thickness=slice_thickness,
+                apodization=0.5,
+                time_bw_product=4,
+                phase_offset=rf_ex.phase_offset,
+                freq_offset=rf_ex.freq_offset,
+                return_gz=True,
+            )
+
             seq.add_block(gs1)
             seq.add_block(gs2, rf_ex)
             seq.add_block(gs3, gr3)
@@ -283,7 +294,7 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
                 )
                 # Recreate to update flip angle
                 rf_ref = pp.make_sinc_pulse(
-                    flip_angle=rf_flip[k_echo + k_ex * n_echo] * np.pi / 180,
+                    flip_angle=rf_flip[n_ex + 1 + k_echo + k_ex * n_echo] * np.pi / 180,
                     system=system,
                     duration=t_ref_pulse,
                     slice_thickness=slice_thickness,
@@ -335,43 +346,58 @@ def main(rf_flip: torch.Tensor | np.ndarray, plot: bool, write_seq: bool, TR,
 # OPTIMIZATION
 # ============
 
-target_TR = 2
-optim_TR = 0.3
-target = 0.1 * pp0.simulate(lambda: main(torch.full((144, ), 120), False, False, TR=target_TR), True)
-start = pp0.simulate(lambda: main(torch.full((144, ), 120), False, False, TR=optim_TR), True)
+pulses = 85
+iters = 250
 
-flip_hist = np.zeros((150, 144))
+target_TR = 2
+optim_TR = 2
+flips = torch.zeros(85)
+flips[:5] = 90  # excitation
+flips[5:] = 180 # refocusing
+flips_target = flips.clone()
+
+target = pp0.simulate(lambda: main(flips_target, False, False, TR=target_TR), True)
+
+flip_hist = np.zeros((iters, pulses))
+img_loss_hist = []
+sar_loss_hist = []
 loss_hist = []
 def update(flips, reco, iter):
-    loss = ((target.abs() - reco.abs())**2).mean()
+    img_loss = ((target.abs() - reco.abs())**2).mean()
+    sar_loss = (flips**2).mean()
+    loss = img_loss * 1e3 + sar_loss / 1e4
 
     flip_hist[iter:, :] = flips.clone().detach()[None, :]
     loss_hist.append(loss.detach())
+    img_loss_hist.append(img_loss.detach())
+    sar_loss_hist.append(sar_loss.detach())
 
     if iter % 10 == 9:
         import matplotlib.pyplot as plt
+        vmax = reco.abs().max()
         plt.figure(figsize=(10, 6), dpi=120)
         plt.subplot(231)
-        plt.title("Start")
-        plt.imshow(start.abs().T, origin="lower", vmin=0, vmax=target.abs().max())
-        plt.subplot(232)
+        plt.subplot(221)
         plt.title("Target")
-        plt.imshow(target.abs().T, origin="lower", vmin=0, vmax=target.abs().max())
+        plt.imshow(target.abs().T, origin="lower", vmin=0.05*vmax, vmax=0.95*vmax, cmap="gray")
         plt.axis("off")
-        plt.subplot(233)
+        plt.subplot(222)
         plt.title("Optimized")
-        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0, vmax=target.abs().max())
+        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0.05*vmax, vmax=0.95*vmax, cmap="gray")
         plt.axis("off")
         plt.subplot(223)
         plt.title("Flip Angles")
         cmap = plt.get_cmap("viridis")
-        for i in range(144):
-            plt.plot(flip_hist[:, i], c=cmap(i/144))
+        for i in range(pulses):
+            plt.plot(flip_hist[:, i], c=cmap(i/pulses))
         plt.xlabel("Iteration")
         plt.grid()
         plt.subplot(224)
         plt.title("Loss")
-        plt.plot(loss_hist)
+        plt.plot([l / max(loss_hist) for l in loss_hist], label="total loss")
+        plt.plot([l / max(img_loss_hist) for l in img_loss_hist], label="image loss")
+        plt.plot([l / max(sar_loss_hist) for l in sar_loss_hist], label="sar loss")
+        plt.ylim(bottom=-0.05)
         plt.xlabel("Iteration")
         plt.grid()
         plt.show()
@@ -380,7 +406,55 @@ def update(flips, reco, iter):
 
 
 # Try to match the target with a TR of 2s with a sequence with a shorter TR
-flips = torch.full((144, ), 120.0)
-flips = pp0.optimize(lambda x: main(x, False, False, TR=optim_TR), update, 150, flips, 0.1)
+# flips = torch.full((refocs, ), 120.0)
+flips = pp0.optimize(lambda x: main(x, False, False, TR=optim_TR), update, iters, flips, 0.35)
 # Export the sequence with the now optimized flip angles
 main(flips, plot=True, write_seq=True, TR=optim_TR, seq_filename="tse_optimized.seq")
+
+#%% Generate  final image
+import matplotlib.pyplot as plt
+best_rep = np.argmin(loss_hist)
+best_flips = flip_hist[best_rep, :]
+
+print(f"SAR: {sar_loss_hist[0]} -> {sar_loss_hist[best_rep]}")
+
+reco = pp0.simulate(lambda: main(best_flips, False, False, TR=optim_TR), True)
+#%%
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(7, 7), dpi=120)
+plt.subplot(331)
+plt.title("Target")
+plt.imshow(target.abs().T, origin="lower", vmin=0, cmap="gray")
+plt.axis("off")
+plt.colorbar()
+plt.subplot(332)
+plt.title("Optimized")
+plt.imshow(reco.abs().T, origin="lower", vmin=0, cmap="gray")
+plt.axis("off")
+plt.colorbar()
+plt.subplot(333)
+plt.title("Difference")
+plt.imshow((target.abs() - reco.abs()).abs().T, origin="lower", vmin=0, cmap="gray")
+plt.axis("off")
+plt.colorbar()
+plt.subplot(312)
+plt.title("Flip Angles")
+cmap = plt.get_cmap("viridis")
+for i in range(pulses):
+    plt.plot(flip_hist[:, i], c=cmap(i/pulses))
+plt.ylim(0, 225)
+plt.yticks([0, 45, 90, 135, 180, 225])
+plt.xlabel("Iteration")
+plt.grid()
+plt.subplot(313)
+plt.title("Loss")
+plt.plot([l / max(loss_hist) for l in loss_hist], label="total loss")
+plt.plot([l / max(img_loss_hist) for l in img_loss_hist], label="image loss")
+plt.plot([l / max(sar_loss_hist) for l in sar_loss_hist], label="sar loss")
+plt.legend()
+plt.xlabel("Iteration")
+plt.grid()
+
+# plt.subplots_adjust(wspace=-0.1, hspace=0.5)
+plt.show()
