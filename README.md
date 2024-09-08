@@ -7,6 +7,22 @@ Use pypulseq for sequence programming and insert the sequence definition directl
 Built for [pypulseq 1.4.2](https://github.com/imr-framework/pypulseq/tree/v1.4.2)
 
 
+## Development
+
+1. Create a virtual environment that can use globally installed packages
+   ```bash
+     python -m venv --system-site-packages .venv
+   ```
+2. Activate this environment
+   ```bash
+     .venv\Scripts\activate
+   ```
+3. Install pulseq-zero in the virtual enviornment in editable mode
+   ```bash
+     pip install --editable .
+   ```
+
+
 ## Usage
 
 Example scripts are provided in 'pulseqzero/seq_examples'.

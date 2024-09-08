@@ -1,2 +1,4 @@
 *.seq
 __pycache__
+.venv
+dist

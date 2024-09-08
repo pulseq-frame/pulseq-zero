@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=74.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pulseqzero"
+version = "0.0.1"
+authors = [
+  { name="Jonathan Endres", email="jonathan.endres@uk-erlangen.de" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
