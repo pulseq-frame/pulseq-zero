@@ -102,3 +102,135 @@ The sequence definition can now be used in many ways!
 The following pypulseq methods and classes currently exist in Pulseq-zero.
 If your sequence scripts rely methods that are not listed here, Pulseq-zero might not yet be usable.
 Please create an issue with the request for the missing functionality.
+
+Pypulseq 1.4.2 has the following re-exports that are expected to be used frequently.
+They fall into different categories as specified below, which also are the roadmap for pulseq-zero development.
+
+```python
+  from pypulseq.SAR.SAR_calc import calc_SAR
+  from pypulseq.Sequence.sequence import Sequence
+  from pypulseq.add_gradients import add_gradients
+  from pypulseq.align import align
+  from pypulseq.calc_duration import calc_duration
+  from pypulseq.calc_ramp import calc_ramp
+  from pypulseq.calc_rf_bandwidth import calc_rf_bandwidth
+  from pypulseq.calc_rf_center import calc_rf_center
+  from pypulseq.make_adc import make_adc
+  from pypulseq.make_adiabatic_pulse import make_adiabatic_pulse
+  from pypulseq.make_arbitrary_grad import make_arbitrary_grad
+  from pypulseq.make_arbitrary_rf import make_arbitrary_rf
+  from pypulseq.make_block_pulse import make_block_pulse
+  from pypulseq.make_sigpy_pulse import *
+  from pypulseq.make_delay import make_delay
+  from pypulseq.make_digital_output_pulse import make_digital_output_pulse
+  from pypulseq.make_extended_trapezoid import make_extended_trapezoid
+  from pypulseq.make_extended_trapezoid_area import make_extended_trapezoid_area
+  from pypulseq.make_gauss_pulse import make_gauss_pulse
+  from pypulseq.make_label import make_label
+  from pypulseq.make_sinc_pulse import make_sinc_pulse
+  from pypulseq.make_trapezoid import make_trapezoid
+  from pypulseq.sigpy_pulse_opts import SigpyPulseOpts
+  from pypulseq.make_trigger import make_trigger
+  from pypulseq.opts import Opts
+  from pypulseq.points_to_waveform import points_to_waveform
+  from pypulseq.rotate import rotate
+  from pypulseq.scale_grad import scale_grad
+  from pypulseq.split_gradient import split_gradient
+  from pypulseq.split_gradient_at import split_gradient_at
+  from pypulseq.supported_labels_rf_use import get_supported_labels
+  from pypulseq.traj_to_grad import traj_to_grad
+```
+
+### TODO
+
+- [x] `calc_SAR`
+- [ ] `Sequence`
+  - [ ] `__init__`
+  - [ ] `__str__`
+  - [ ] `adc_times`
+  - [ ] `add_block`
+  - [ ] `calculate_gradient_spectrum`
+  - [ ] `calculate_kspace`
+  - [ ] `calculate_kspacePP`
+  - [x] `calculate_pns`
+  - [x] `check_timing`
+  - [ ] `duration`
+  - [x] `evaluate_labels`
+  - [ ] `flip_grad_axis`
+  - [ ] `get_block`
+  - [ ] `get_definition`
+  - [ ] `get_extension_type_ID`
+  - [ ] `get_extension_type_string`
+  - [ ] `get_gradients`
+  - [ ] `mod_grad_axis`
+  - [x] `plot`
+  - [x] `read`
+  - [ ] `register_adc_event`
+  - [ ] `register_grad_event`
+  - [ ] `register_label_event`
+  - [ ] `register_rf_event`
+  - [ ] `remove_duplicates`
+  - [ ] `rf_from_lib_data`
+  - [ ] `rf_times`
+  - [ ] `set_block`
+  - [ ] `set_definition`
+  - [ ] `set_extension_string_ID`
+  - [ ] `test_report`
+  - [ ] `waveforms`
+  - [ ] `waveforms_and_times`
+  - [ ] `waveforms_export`
+  - [x] `write`
+- [ ] `add_gradients`
+- [ ] `align`
+- [ ] `calc_duration`
+- [ ] `calc_ramp`
+- [ ] `calc_rf_bandwidth`
+- [ ] `calc_rf_center`
+- [ ] `make_adc`
+- [ ] `make_adiabatic_pulse`
+- [ ] `make_arbitrary_grad`
+- [ ] `make_arbitrary_rf`
+- [ ] `make_block_pulse`
+- [ ] `make_sigpy_pulse::*`
+- [ ] `make_delay`
+- [ ] `make_digital_output_pulse`
+- [ ] `make_extended_trapezoid`
+- [ ] `make_extended_trapezoid_area`
+- [ ] `make_gauss_pulse`
+- [ ] `make_label`
+- [ ] `make_sinc_pulse`
+- [ ] `make_trapezoid`
+- [ ] `SigpyPulseOpts`
+- [ ] `make_trigger`
+- [x] `Opts`
+  - [x] `__init__`
+  - [x] `set_as_default`
+  - [x] `reset_default`
+  - [x] `__str__`
+- [ ] `points_to_waveform`
+- [ ] `rotate`
+- [ ] `scale_grad`
+- [ ] `split_gradient`
+- [ ] `split_gradient_at`
+- [ ] `get_supported_labels`
+- [ ] `traj_to_grad`
+
+### Disabled in mr0 mode
+
+These will in mr0 mode either return the specified value or don't exist so using them raises an error.
+The reason for disabling is either that a differentiable re-implementation if out of scope of pulseq-zero (e.g.: pulse optimization) or not sensible (like sequence loding).
+
+| function | return value |
+| -------- | ------------ |
+| `calc_SAR` | `(True, [])` |
+| `Sequence.calculate_pns` | **error** |
+| `Sequence.check_timing` | `None` |
+| `Sequence.evaluate_labels` | **error** |
+| `Sequence.plot` | `None` |
+| `Sequence.read` | **error** |
+| `Sequence.write` | `None` or `""` |
+
+### Additional API
+
+This API does not exist in pulseq and is provided for simulation, optimization and other tasks.
+
