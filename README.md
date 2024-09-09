@@ -206,7 +206,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [x] `make_adiabatic_pulse`
 - [ ] `make_arbitrary_grad`
 - [ ] `make_arbitrary_rf`
-- [ ] `make_block_pulse`
+- [x] `make_block_pulse`
 - [x] `make_delay`
 - [x] `make_digital_output_pulse`
 - [ ] `make_extended_trapezoid`
@@ -265,8 +265,8 @@ These are not listed here, but note that some scripts that don't run otherwise m
 | `make_trigger`, `make_digital_output_pulse` | returns `Delay`, ignores rest |
 | `make_adc` | has no `dead_time` property |
 | `make_arbitrary_rf`, `make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse` | returned object has no `signal` or `t` attribute (waveform is not computed) but has an added `flip_angle` |
-| `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first` or `last` |
-| `make_sinc_pulse` | has no `dead_time` and `ringdown_time` properties |
+| `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first`, `last` or `use` |
+| `make_sinc_pulse` | has no `dead_time`, `ringdown_time` or `use` properties |
 
 ### Additional API
 

@@ -24,39 +24,64 @@ def make_arbitrary_rf(
 
 
 def make_block_pulse(
+    flip_angle,
+    delay=0,
+    duration=None,
+    bandwidth=None,
+    time_bw_product=0.25,
+    freq_offset=0,
+    phase_offset=0,
+    return_delay=False,
+    system=None,
+    use="",
+):
+    if system is None:
+        system = Opts.default
+
+    if duration is None:
+        if bandwidth is None:
+            duration = 1e-4
+        else:
+            duration = time_bw_product / bandwidth
+    else:
+        assert bandwidth is None
+
+    rf = Pulse(
         flip_angle,
-        delay=0,
-        duration=None,
-        bandwith=None,
-        time_bw_product=None,
-        freq_offset=0,
-        phase_offset=0,
-        return_delay=False,
-        system=None,
-        use=None,
-    ):
-    pass
+        duration,
+        freq_offset,
+        phase_offset,
+        delay
+    )
+
+    if system.rf_dead_time > rf.delay:
+        rf.delay = system.rf_dead_time
+
+    if return_delay:
+        return (rf, make_delay(calc_duration(rf) + system.rf_ringdown_time))
+    else:
+        return rf
 
 
 def make_gauss_pulse(
-        flip_angle: float,
-        apodization: float = 0,
-        bandwidth: float = 0,
-        center_pos: float = 0.5,
-        delay: float = 0,
-        dwell: float = 0,
-        duration: float = 4e-3,
-        freq_offset: float = 0,
-        max_grad: float = 0,
-        max_slew: float = 0,
-        phase_offset: float = 0,
-        return_gz: bool = False,
-        return_delay: bool = False,
-        slice_thickness: float = 0,
-        system: Opts = None,
-        time_bw_product: float = 4,
-        use: str = str(),
-    ):
+    flip_angle,
+    apodization=0,
+    bandwidth=0,
+    center_pos=0.5,
+    delay=0,
+    dwell=0,
+    duration=4e-3,
+    freq_offset=0,
+    max_grad=0,
+    max_slew=0,
+    phase_offset=0,
+    return_gz=False,
+    return_delay=False,
+    slice_thickness=0,
+    system=None,
+    time_bw_product=4,
+    use=""
+):
     pass
 
 
