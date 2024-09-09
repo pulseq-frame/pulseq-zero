@@ -10,17 +10,17 @@ Built for [pypulseq 1.4.2](https://github.com/imr-framework/pypulseq/tree/v1.4.2
 ## Development
 
 1. Create a virtual environment that can use globally installed packages
-   ```bash
-     python -m venv --system-site-packages .venv
-   ```
+  ```bash
+  python -m venv --system-site-packages .venv
+  ```
 2. Activate this environment
-   ```bash
-     .venv\Scripts\activate
-   ```
+  ```bash
+  .venv\Scripts\activate
+  ```
 3. Install pulseq-zero in the virtual enviornment in editable mode
-   ```bash
-     pip install --editable .
-   ```
+  ```bash
+  pip install --editable .
+  ```
 
 
 ## Usage
@@ -36,21 +36,21 @@ A wrapper that can switch between the pulseq - MR-zero interface and the real py
 
 Before:
 ```python
-  import pypulseq as pp
+import pypulseq as pp
 
-  # Build a sequence...
-  seq = pp.Sequence()
-  seq.add_block(pp.make_delay(10e-3))
+# Build a sequence...
+seq = pp.Sequence()
+seq.add_block(pp.make_delay(10e-3))
 ```
 
 After:
 ```python
-  import pulseqzero
-  pp = pulseqzero.pp_facade
+import pulseqzero
+pp = pulseqzero.pp_facade
   
-  # Use exactly as before...
-  seq = pp.Sequence()
-  seq.add_block(pp.make_delay(10e-3))
+# Use exactly as before...
+seq = pp.Sequence()
+seq.add_block(pp.make_delay(10e-3))
 ```
 
 ### Define the sequence
@@ -66,14 +66,14 @@ Namely, it allows to:
 The result is something like the following example:
 
 ```python
-  def my_gre_seq(TR, TE):
-    seq = pp.Sequence()
+def my_gre_seq(TR, TE):
+  seq = pp.Sequence()
 
-    # ... create your sequence ...
-    seq.add_block(pp.make_delay(TR - 3e-3)) # use the parameters in any way
-    # ... more sequence creation ...
+  # ... create your sequence ...
+  seq.add_block(pp.make_delay(TR - 3e-3)) # use the parameters in any way
+  # ... more sequence creation ...
 
-    return seq
+  return seq
 ```
 
 ### Application
@@ -82,35 +82,35 @@ The sequence definition can now be used in many ways!
 
 - Using with pulseq for plotting and exporting:
   ```python
-    seq = my_gre_seq(14e-3, 5e-3)
-    seq.plot()
-    seq.write("tse.seq")
+  seq = my_gre_seq(14e-3, 5e-3)
+  seq.plot()
+  seq.write("tse.seq")
   ```
 - Using with MR-zero for simulation:
   ```python
-    import MRzeroCore as mr0
-    # Data loading and other imports
-    
-    with pulseqzero.mr0_mode():
-      seq = my_gre_seq()
+  import MRzeroCore as mr0
+  # Data loading and other imports
+  
+  with pulseqzero.mr0_mode():
+    seq = my_gre_seq()
 
-    graph = mr0.compute_graph(seq, sim_data)
-    signal = mr0.execute_graph(graph, seq, sim_data)
-    reco = mr0.reco_adjoint(signal, seq.get_kspace())
+  graph = mr0.compute_graph(seq, sim_data)
+  signal = mr0.execute_graph(graph, seq, sim_data)
+  reco = mr0.reco_adjoint(signal, seq.get_kspace())
   ```
 - Using pulseq-zero helpers to simplify common tasks even more!
   ```python
-    # Define some target_image which we try to achieve
-    
-    TR = torch.tensor(14e-3)
-    TE = torch.tensor(5e-3)
-    for iter in range(100):
-      pulseqzero.optimize(my_gre_seq, target_image, TR, TE)
+  # Define some target_image which we try to achieve
+  
+  TR = torch.tensor(14e-3)
+  TE = torch.tensor(5e-3)
+  for iter in range(100):
+    pulseqzero.optimize(my_gre_seq, target_image, TR, TE)
 
-    # Back to using plain old pypulseq for export again!
-    # The pulseq-zero magic is disabled outside of all special calls but the parameters remain optimized
-    seq = my_gre_seq(TR, TE)
-    seq.write("tse_optim.seq")
+  # Back to using plain old pypulseq for export again!
+  # The pulseq-zero magic is disabled outside of all special calls but theparameters remain optimized
+  seq = my_gre_seq(TR, TE)
+  seq.write("tse_optim.seq")
   ```
 
 ## API
@@ -123,38 +123,38 @@ Pypulseq 1.4.2 has the following re-exports that are expected to be used frequen
 They fall into different categories as specified below, which also are the roadmap for pulseq-zero development.
 
 ```python
-  from pypulseq.SAR.SAR_calc import calc_SAR
-  from pypulseq.Sequence.sequence import Sequence
-  from pypulseq.add_gradients import add_gradients
-  from pypulseq.align import align
-  from pypulseq.calc_duration import calc_duration
-  from pypulseq.calc_ramp import calc_ramp
-  from pypulseq.calc_rf_bandwidth import calc_rf_bandwidth
-  from pypulseq.calc_rf_center import calc_rf_center
-  from pypulseq.make_adc import make_adc
-  from pypulseq.make_adiabatic_pulse import make_adiabatic_pulse
-  from pypulseq.make_arbitrary_grad import make_arbitrary_grad
-  from pypulseq.make_arbitrary_rf import make_arbitrary_rf
-  from pypulseq.make_block_pulse import make_block_pulse
-  from pypulseq.make_sigpy_pulse import *
-  from pypulseq.make_delay import make_delay
-  from pypulseq.make_digital_output_pulse import make_digital_output_pulse
-  from pypulseq.make_extended_trapezoid import make_extended_trapezoid
-  from pypulseq.make_extended_trapezoid_area import make_extended_trapezoid_area
-  from pypulseq.make_gauss_pulse import make_gauss_pulse
-  from pypulseq.make_label import make_label
-  from pypulseq.make_sinc_pulse import make_sinc_pulse
-  from pypulseq.make_trapezoid import make_trapezoid
-  from pypulseq.sigpy_pulse_opts import SigpyPulseOpts
-  from pypulseq.make_trigger import make_trigger
-  from pypulseq.opts import Opts
-  from pypulseq.points_to_waveform import points_to_waveform
-  from pypulseq.rotate import rotate
-  from pypulseq.scale_grad import scale_grad
-  from pypulseq.split_gradient import split_gradient
-  from pypulseq.split_gradient_at import split_gradient_at
-  from pypulseq.supported_labels_rf_use import get_supported_labels
-  from pypulseq.traj_to_grad import traj_to_grad
+from pypulseq.SAR.SAR_calc import calc_SAR
+from pypulseq.Sequence.sequence import Sequence
+from pypulseq.add_gradients import add_gradients
+from pypulseq.align import align
+from pypulseq.calc_duration import calc_duration
+from pypulseq.calc_ramp import calc_ramp
+from pypulseq.calc_rf_bandwidth import calc_rf_bandwidth
+from pypulseq.calc_rf_center import calc_rf_center
+from pypulseq.make_adc import make_adc
+from pypulseq.make_adiabatic_pulse import make_adiabatic_pulse
+from pypulseq.make_arbitrary_grad import make_arbitrary_grad
+from pypulseq.make_arbitrary_rf import make_arbitrary_rf
+from pypulseq.make_block_pulse import make_block_pulse
+from pypulseq.make_sigpy_pulse import *
+from pypulseq.make_delay import make_delay
+from pypulseq.make_digital_output_pulse import make_digital_output_pulse
+from pypulseq.make_extended_trapezoid import make_extended_trapezoid
+from pypulseq.make_extended_trapezoid_area import make_extended_trapezoid_area
+from pypulseq.make_gauss_pulse import make_gauss_pulse
+from pypulseq.make_label import make_label
+from pypulseq.make_sinc_pulse import make_sinc_pulse
+from pypulseq.make_trapezoid import make_trapezoid
+from pypulseq.sigpy_pulse_opts import SigpyPulseOpts
+from pypulseq.make_trigger import make_trigger
+from pypulseq.opts import Opts
+from pypulseq.points_to_waveform import points_to_waveform
+from pypulseq.rotate import rotate
+from pypulseq.scale_grad import scale_grad
+from pypulseq.split_gradient import split_gradient
+from pypulseq.split_gradient_at import split_gradient_at
+from pypulseq.supported_labels_rf_use import get_supported_labels
+from pypulseq.traj_to_grad import traj_to_grad
 ```
 
 ### TODO
@@ -202,22 +202,25 @@ They fall into different categories as specified below, which also are the roadm
 - [ ] `calc_ramp`
 - [ ] `calc_rf_bandwidth`
 - [ ] `calc_rf_center`
-- [ ] `make_adc`
+- [x] `make_adc`
 - [ ] `make_adiabatic_pulse`
 - [ ] `make_arbitrary_grad`
 - [ ] `make_arbitrary_rf`
 - [ ] `make_block_pulse`
-- [ ] `make_sigpy_pulse::*`
-- [ ] `make_delay`
+- [x] `make_delay`
 - [ ] `make_digital_output_pulse`
 - [ ] `make_extended_trapezoid`
 - [ ] `make_extended_trapezoid_area`
 - [ ] `make_gauss_pulse`
-- [ ] `make_label`
+- [x] `make_label`
 - [ ] `make_sinc_pulse`
 - [ ] `make_trapezoid`
-- [ ] `SigpyPulseOpts`
-- [ ] `make_trigger`
+- [x] sigpy
+  - [x] `SigpyPulseOpts`
+  - [x] `sigpy_n_seq`
+  - [x] `make_slr`
+  - [x] `make_sms`
+- [x] `make_trigger`
 - [x] `Opts`
   - [x] `__init__`
   - [x] `set_as_default`
@@ -244,7 +247,18 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | `Sequence.evaluate_labels` | **error** |
 | `Sequence.plot` | `None` |
 | `Sequence.read` | **error** |
-| `Sequence.write` | `None` or `""` |
+| `Sequence.write` | `None` or `""` depending on `create_signature` |
+| sigpy | **error** |
+| `make_label` | `None` |
+
+### Altered behaviour
+
+Some functions are partially supported in mr0 mode and show altered behaviour:
+
+| function | remarks |
+| -------- | ------- |
+| `make_trigger` | returns `Delay`, ignores rest |
+| `make_adc` | ignores `freq_offset` |
 
 ### Additional API
 
