@@ -203,17 +203,17 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [ ] `calc_rf_bandwidth`
 - [ ] `calc_rf_center`
 - [x] `make_adc`
-- [ ] `make_adiabatic_pulse`
+- [x] `make_adiabatic_pulse`
 - [ ] `make_arbitrary_grad`
 - [ ] `make_arbitrary_rf`
 - [ ] `make_block_pulse`
 - [x] `make_delay`
-- [ ] `make_digital_output_pulse`
+- [x] `make_digital_output_pulse`
 - [ ] `make_extended_trapezoid`
 - [ ] `make_extended_trapezoid_area`
 - [ ] `make_gauss_pulse`
 - [x] `make_label`
-- [ ] `make_sinc_pulse`
+- [x] `make_sinc_pulse`
 - [ ] `make_trapezoid`
 - [x] sigpy
   - [x] `SigpyPulseOpts`
@@ -249,16 +249,22 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | `Sequence.read` | **error** |
 | `Sequence.write` | `None` or `""` depending on `create_signature` |
 | sigpy | **error** |
+| `make_adiabatic_pulse` | **error** |
 | `make_label` | `None` |
 
 ### Altered behaviour
 
-Some functions are partially supported in mr0 mode and show altered behaviour:
+Some functions are only partially supported in mr0 mode and / or some aspects are missing in simulation.
+In general, pulseq-zero tries not to include every single attribute that exists in pypulseq to reduce bloat; if scripts rely on them existing (even if they are ignored even in pypulseq) they can be added to the objects created in the `make_` functions even if they don't affect anything.
+Some pypulseq functions round to raster times, which is not done in mr0 mode for differentiability.
+Pypulseq does many more checks on timing or other parameters that are not checked by pulseq-zero.
+These are not listed here, but note that some scripts that don't run otherwise might run in mr0 mode.
 
 | function | remarks |
 | -------- | ------- |
-| `make_trigger` | returns `Delay`, ignores rest |
-| `make_adc` | ignores `freq_offset` |
+| `make_trigger`, `make_digital_output_pulse` | returns `Delay`, ignores rest |
+| `make_adc` | has no `dead_time` property |
+| `make_arbitrary_rf`, `make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse` | returned object has no `signal` or `t` attribute (waveform is not computed) but has an added `flip_angle` |
 
 ### Additional API
 

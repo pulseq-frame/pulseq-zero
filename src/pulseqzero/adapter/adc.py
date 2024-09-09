@@ -21,7 +21,7 @@ def make_adc(
     if delay < system.adc_dead_time:
         delay = system.adc_dead_time
     
-    return Adc(num_samples, dwell, delay, phase_offset)
+    return Adc(num_samples, dwell, delay, freq_offset, phase_offset, system.adc_dead_time)
 
 
 @dataclass
@@ -29,4 +29,5 @@ class Adc:
     num_samples: ...
     dwell: ...
     delay: ...
+    freq_offset: ...  # ignored by sim
     phase_offset: ...
