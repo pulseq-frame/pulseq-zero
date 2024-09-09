@@ -22,7 +22,7 @@ def make_trapezoid(
         max_grad = system.max_grad
     if max_slew is None:
         max_slew = system.max_slew
-    
+
     if flat_time is not None:
         if amplitude is not None:
             pass
@@ -34,12 +34,12 @@ def make_trapezoid(
         else:
             assert flat_area is not None
             amplitude = flat_area / flat_time
-        
+
         if rise_time is None:
             rise_time = abs(amplitude) / max_slew
         if fall_time is None:
             fall_time = rise_time
-    
+
     elif duration is not None:
         if amplitude is None:
             if rise_time is None:
@@ -59,7 +59,7 @@ def make_trapezoid(
         if fall_time is None:
             fall_time = rise_time
         flat_time = duration - rise_time - fall_time
-    
+
     else:
         assert area is not None
         amplitude, rise_time, flat_time, fall_time = calc_params_for_area(area, max_slew, max_grad)

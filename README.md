@@ -214,7 +214,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [ ] `make_gauss_pulse`
 - [x] `make_label`
 - [x] `make_sinc_pulse`
-- [ ] `make_trapezoid`
+- [x] `make_trapezoid`
 - [x] sigpy
   - [x] `SigpyPulseOpts`
   - [x] `sigpy_n_seq`
@@ -266,6 +266,7 @@ These are not listed here, but note that some scripts that don't run otherwise m
 | `make_adc` | has no `dead_time` property |
 | `make_arbitrary_rf`, `make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse` | returned object has no `signal` or `t` attribute (waveform is not computed) but has an added `flip_angle` |
 | `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first` or `last` |
+| `make_sinc_pulse` | has no `dead_time` and `ringdown_time` properties |
 
 ### Additional API
 

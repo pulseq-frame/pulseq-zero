@@ -61,23 +61,23 @@ def make_gauss_pulse(
 
 
 def make_sinc_pulse(
-        flip_angle,
-        apodization=0,
-        delay=0,
-        duration=4e-3,
-        dwell=0,
-        center_pos=0.5,
-        freq_offset=0,
-        max_grad=None,
-        max_slew=None,
-        phase_offset=0,
-        return_delay=False,
-        return_gz=False,
-        slice_thickness=0,
-        system=None,
-        time_bw_product=4,
-        use="",
-    ):
+    flip_angle,
+    apodization=0,
+    delay=0,
+    duration=4e-3,
+    dwell=0,
+    center_pos=0.5,
+    freq_offset=0,
+    max_grad=None,
+    max_slew=None,
+    phase_offset=0,
+    return_delay=False,
+    return_gz=False,
+    slice_thickness=0,
+    system=None,
+    time_bw_product=4,
+    use=""
+):
     if system is None:
         system = Opts.default
 
@@ -86,13 +86,11 @@ def make_sinc_pulse(
         duration,
         freq_offset,
         phase_offset,
-        system.rf_dead_time,
-        system.rf_ringdown_time,
         delay
     )
 
     ret_val = (rf, )
-    
+
     if return_gz:
         if max_grad is None:
             max_grad = system.max_grad
@@ -100,22 +98,28 @@ def make_sinc_pulse(
             max_slew = system.max_slew
 
         BW = time_bw_product / duration
-        grad_area = BW / slice_thickness * duration
+        area = BW / slice_thickness * duration
 
-        gz = make_trapezoid(...)
-        gzr = make_trapezoid(...)
+        gz = make_trapezoid(
+            "z", system=system,
+            flat_area=area, flat_time=duration
+        )
+        gzr = make_trapezoid(
+            "z", system=system,
+            area=-area * (1 - center_pos) - 0.5 * (gz.area - area)
+        )
 
         if rf.delay > gz.rise_time:
             gz.delay = rf.delay - gz.rise_time
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
-        
+
         ret_val = (*ret_val, gz, gzr)
-    
+
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(calc_duration(rf) + rf.ringdown_time)
         ret_val = (*ret_val, delay)
-    
+
     return ret_val
 
 
@@ -125,6 +129,4 @@ class Pulse:
     shape_dur: ...
     freq_offset: ...  # ignored by sim
     phase_offset: ...
-    dead_time: ...  # ignored by sim
-    ringdown_time: ...  # ignored by sim
     delay: ...
