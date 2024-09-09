@@ -21,18 +21,18 @@ class Opts:
 
         self.gamma = select(gamma, Opts.default.gamma)
         self.max_grad = select(convert(max_grad, grad_unit, gamma, "Hz/m"), Opts.default.max_grad)
-        self.max_slew = select(convert(max_slew, grad_unit, gamma, "Hz/m/s"), Opts.default.max_slew)
+        self.max_slew = select(convert(max_slew, slew_unit, gamma, "Hz/m/s"), Opts.default.max_slew)
         # Rise time seems to overwrite
         if rise_time is not None:
             self.max_slew = self.max_grad / rise_time
         self.adc_dead_time = select(adc_dead_time, Opts.default.adc_dead_time)
-        self.adc_raster_time = select(adc_dead_time, Opts.default.adc_raster_time)
-        self.block_duration_raster = select(adc_dead_time, Opts.default.block_duration_raster)
-        self.rf_dead_time = select(adc_dead_time, Opts.default.rf_dead_time)
-        self.rf_raster_time = select(adc_dead_time, Opts.default.rf_raster_time)
-        self.grad_raster_time = select(adc_dead_time, Opts.default.grad_raster_time)
-        self.rf_ringdown_time = select(adc_dead_time, Opts.default.rf_ringdown_time)
-        self.B0 = select(adc_dead_time, Opts.default.B0)
+        self.adc_raster_time = select(adc_raster_time, Opts.default.adc_raster_time)
+        self.block_duration_raster = select(block_duration_raster, Opts.default.block_duration_raster)
+        self.rf_dead_time = select(rf_dead_time, Opts.default.rf_dead_time)
+        self.rf_raster_time = select(rf_raster_time, Opts.default.rf_raster_time)
+        self.grad_raster_time = select(grad_raster_time, Opts.default.grad_raster_time)
+        self.rf_ringdown_time = select(rf_ringdown_time, Opts.default.rf_ringdown_time)
+        self.B0 = select(B0, Opts.default.B0)
 
     def set_as_default(self):
         from copy import copy
