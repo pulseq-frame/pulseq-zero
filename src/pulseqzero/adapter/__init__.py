@@ -15,4 +15,5 @@ def make_label(label, type, value):
 
 
 def calc_duration(*args):
-    raise NotImplementedError
+    # We assume that all events have a duration property
+    return max(event.duration for event in args)

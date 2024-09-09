@@ -3,24 +3,67 @@ from pulseqzero.adapter import Opts, make_delay, make_trapezoid, calc_duration
 
 
 def make_arbitrary_rf(
-        signal: np.ndarray,
-        flip_angle: float,
-        bandwidth: float = 0,
-        delay: float = 0,
-        dwell: float = 0,
-        freq_offset: float = 0,
-        no_signal_scaling: bool = False,
-        max_grad: float = 0,
-        max_slew: float = 0,
-        phase_offset: float = 0,
-        return_delay: bool = False,
-        return_gz: bool = False,
-        slice_thickness: float = 0,
-        system: Opts = None,
-        time_bw_product: float = 0,
-        use: str = str(),
-    ):
-    pass
+    signal,
+    flip_angle,
+    bandwidth=0,
+    delay=0,
+    dwell=None,
+    freq_offset=0,
+    no_signal_scaling=False,
+    max_grad=0,
+    max_slew=0,
+    phase_offset=0,
+    return_delay=False,
+    return_gz=False,
+    slice_thickness=0,
+    system=None,
+    time_bw_product=0,
+    use=str(),
+):
+    if system is None:
+        system = Opts.default
+    if dwell is None:
+        dwell = system.rf_raster_time
+
+    duration = len(signal) * dwell
+
+    rf = Pulse(
+        flip_angle,
+        duration,
+        freq_offset,
+        phase_offset,
+        delay,
+        system.rf_ringdown_time
+    )
+    ret_val = (rf, )
+
+    if return_gz:
+        if max_grad is None:
+            max_grad = system.max_grad
+        if max_slew is None:
+            max_slew = system.max_slew
+
+        if bandwidth is None:
+            bandwidth = time_bw_product / duration
+        area = bandwidth / slice_thickness * duration
+
+        gz = make_trapezoid(
+            "z", system=system,
+            flat_area=area, flat_time=duration
+        )
+
+        if rf.delay > gz.rise_time:
+            gz.delay = rf.delay - gz.rise_time
+        if rf.delay < gz.rise_time + gz.delay:
+            rf.delay = gz.rise_time + gz.delay
+
+        ret_val = (*ret_val, gz)
+
+    if return_delay and rf.ringdown_time > 0:
+        delay = make_delay(calc_duration(rf) + rf.ringdown_time)
+        ret_val = (*ret_val, delay)
+
+    return ret_val
 
 
 def make_block_pulse(
@@ -51,7 +94,8 @@ def make_block_pulse(
         duration,
         freq_offset,
         phase_offset,
-        delay
+        delay,
+        system.rf_ringdown_time
     )
 
     if system.rf_dead_time > rf.delay:
@@ -90,7 +134,8 @@ def make_gauss_pulse(
         duration,
         freq_offset,
         phase_offset,
-        delay
+        delay,
+        system.rf_ringdown_time
     )
     ret_val = (rf, )
 
@@ -153,7 +198,8 @@ def make_sinc_pulse(
         duration,
         freq_offset,
         phase_offset,
-        delay
+        delay,
+        system.rf_ringdown_time
     )
     ret_val = (rf, )
 
@@ -196,3 +242,8 @@ class Pulse:
     freq_offset: ...  # ignored by sim
     phase_offset: ...
     delay: ...
+    ringdown_time: ...  # important for duration
+
+    @property
+    def duration(self):
+        return self.delay + self.shape_dur + self.ringdown_time

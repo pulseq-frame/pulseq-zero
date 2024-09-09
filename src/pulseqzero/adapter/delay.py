@@ -16,3 +16,7 @@ def make_digital_output_pulse(channel, delay=0, duration=None, system=None):
 @dataclass
 class Delay:
     delay: ...
+
+    @property
+    def duration(self):
+        return self.delay
