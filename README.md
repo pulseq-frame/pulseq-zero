@@ -211,7 +211,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [x] `make_digital_output_pulse`
 - [ ] `make_extended_trapezoid`
 - [ ] `make_extended_trapezoid_area`
-- [ ] `make_gauss_pulse`
+- [x] `make_gauss_pulse`
 - [x] `make_label`
 - [x] `make_sinc_pulse`
 - [x] `make_trapezoid`
@@ -259,14 +259,16 @@ In general, pulseq-zero tries not to include every single attribute that exists 
 Some pypulseq functions round to raster times, which is not done in mr0 mode for differentiability.
 Pypulseq does many more checks on timing or other parameters that are not checked by pulseq-zero.
 These are not listed here, but note that some scripts that don't run otherwise might run in mr0 mode.
+Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing else - *TODO* should be considered when converting timing to mr0
 
 | function | remarks |
 | -------- | ------- |
 | `make_trigger`, `make_digital_output_pulse` | returns `Delay`, ignores rest |
 | `make_adc` | has no `dead_time` property |
 | `make_arbitrary_rf`, `make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse` | returned object has no `signal` or `t` attribute (waveform is not computed) but has an added `flip_angle` |
-| `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first`, `last` or `use` |
+| `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first`, `last` or `use`, `signal` or `t` |
 | `make_sinc_pulse` | has no `dead_time`, `ringdown_time` or `use` properties |
+| `make_gauss_pulse` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
 
 ### Additional API
 

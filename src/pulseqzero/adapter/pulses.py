@@ -66,7 +66,7 @@ def make_block_pulse(
 def make_gauss_pulse(
     flip_angle,
     apodization=0,
-    bandwidth=0,
+    bandwidth=None,
     center_pos=0.5,
     delay=0,
     dwell=0,
@@ -82,7 +82,49 @@ def make_gauss_pulse(
     time_bw_product=4,
     use=""
 ):
-    pass
+    if system is None:
+        system = Opts.default
+
+    rf = Pulse(
+        flip_angle,
+        duration,
+        freq_offset,
+        phase_offset,
+        delay
+    )
+    ret_val = (rf, )
+
+    if return_gz:
+        if max_grad is None:
+            max_grad = system.max_grad
+        if max_slew is None:
+            max_slew = system.max_slew
+
+        if bandwidth is None:
+            bandwidth = time_bw_product / duration
+        area = bandwidth / slice_thickness * duration
+
+        gz = make_trapezoid(
+            "z", system=system,
+            flat_area=area, flat_time=duration
+        )
+        gzr = make_trapezoid(
+            "z", system=system,
+            area=-area * (1 - center_pos) - 0.5 * (gz.area - area)
+        )
+
+        if rf.delay > gz.rise_time:
+            gz.delay = rf.delay - gz.rise_time
+        if rf.delay < gz.rise_time + gz.delay:
+            rf.delay = gz.rise_time + gz.delay
+
+        ret_val = (*ret_val, gz, gzr)
+
+    if return_delay and rf.ringdown_time > 0:
+        delay = make_delay(calc_duration(rf) + rf.ringdown_time)
+        ret_val = (*ret_val, delay)
+
+    return ret_val
 
 
 def make_sinc_pulse(
@@ -113,7 +155,6 @@ def make_sinc_pulse(
         phase_offset,
         delay
     )
-
     ret_val = (rf, )
 
     if return_gz:
