@@ -198,10 +198,10 @@ from pypulseq.traj_to_grad import traj_to_grad
   - [x] `write`
 - [ ] `add_gradients`
 - [ ] `align`
-- [ ] `calc_duration`
+- [x] `calc_duration`
 - [ ] `calc_ramp`
-- [ ] `calc_rf_bandwidth`
-- [ ] `calc_rf_center`
+- [x] `calc_rf_bandwidth`
+- [x] `calc_rf_center`
 - [x] `make_adc`
 - [x] `make_adiabatic_pulse`
 - [x] `make_arbitrary_grad`
@@ -226,12 +226,12 @@ from pypulseq.traj_to_grad import traj_to_grad
   - [x] `set_as_default`
   - [x] `reset_default`
   - [x] `__str__`
-- [ ] `points_to_waveform`
+- [x] `points_to_waveform`
 - [ ] `rotate`
-- [ ] `scale_grad`
-- [ ] `split_gradient`
+- [x] `scale_grad`
+- [x] `split_gradient`
 - [ ] `split_gradient_at`
-- [ ] `get_supported_labels`
+- [x] `get_supported_labels`
 - [ ] `traj_to_grad`
 
 ### Disabled in mr0 mode
@@ -252,6 +252,9 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | `make_adiabatic_pulse` | **error** |
 | `make_label` | `None` |
 | `make_extended_trapezoid_area` | **error** |
+| `calc_rf_bandwidth` | returns zeroes as mr0 mode doesn't store pulse shapes |
+| `calc_rf_center` | returns zeroes as mr0 mode doesn't store pulse shapes |
+| `points_to_waveform` | **error** |
 
 ### Altered behaviour
 
@@ -273,7 +276,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `make_arbitrary_rf` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
 | `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
 | `make_arbitrary_grad` | no `first` or `last` |
-| `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property |
+| `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
 
 ### Additional API
 

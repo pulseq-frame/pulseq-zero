@@ -1,6 +1,41 @@
 from dataclasses import dataclass
+from copy import copy
 import numpy as np
-from pulseqzero.adapter import Opts
+from pulseqzero.adapter import Opts, calc_duration
+
+
+def scale_grad(grad, scale):
+    grad = copy(grad)
+    if isinstance(grad, TrapGrad):
+        grad.amplitude *= scale
+    if isinstance(grad, FreeGrad):
+        grad.waveform *= scale
+    return grad
+
+
+def split_gradient(grad, system):
+    assert isinstance(grad, TrapGrad)
+    if system is None:
+        system = Opts.default
+    total_duration = calc_duration(grad)
+
+    ramp_up = make_extended_trapezoid(
+        channel=grad.channel,
+        amplitudes=np.array([0, grad.amplitude]),
+        times=np.ndarray([0, grad.rise_time])
+    )
+    flat_top = make_extended_trapezoid(
+        channel=grad.channel,
+        amplitudes=np.array([grad.amplitude, grad.amplitude]),
+        times=np.ndarray([grad.rise_time, grad.rise_time + grad.flat_time])
+    )
+    ramp_down = make_extended_trapezoid(
+        channel=grad.channel,
+        amplitudes=np.array([grad.amplitude, 0]),
+        times=np.ndarray([grad.rise_time + grad.flat_time, total_duration])
+    )
+
+    return ramp_up, flat_top, ramp_down
 
 
 def make_trapezoid(
@@ -159,19 +194,12 @@ def make_extended_trapezoid(
     channel,
     amplitudes=np.zeros(1),
     convert_to_arbitrary=False,
-    max_grad=0,
-    max_slew=0,
+    max_grad=None,
+    max_slew=None,
     skip_check=False,
     system=None,
     times=np.zeros(1),
 ):
-    if system is None:
-        system = Opts.default
-    if max_grad is None:
-        max_grad = system.max_grad
-    if max_slew is None:
-        max_slew = system.max_slew
-
     return FreeGrad(
         channel,
         amplitudes,
