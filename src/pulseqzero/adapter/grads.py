@@ -146,3 +146,36 @@ class FreeGrad:
     @property
     def duration(self):
         return self.delay + self.shape_dur
+        
+    @property
+    def area(self):
+        return 0.5 * (
+            (self.tt[1:] - self.tt[:-1]) *
+            (self.waveform[1:] + self.waveform[:-1])
+        ).sum()
+
+
+def make_extended_trapezoid(
+    channel,
+    amplitudes=np.zeros(1),
+    convert_to_arbitrary=False,
+    max_grad=0,
+    max_slew=0,
+    skip_check=False,
+    system=None,
+    times=np.zeros(1),
+):
+    if system is None:
+        system = Opts.default
+    if max_grad is None:
+        max_grad = system.max_grad
+    if max_slew is None:
+        max_slew = system.max_slew
+
+    return FreeGrad(
+        channel,
+        amplitudes,
+        times[0],
+        times - times[0],
+        times[-1]
+    )

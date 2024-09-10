@@ -209,7 +209,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [x] `make_block_pulse`
 - [x] `make_delay`
 - [x] `make_digital_output_pulse`
-- [ ] `make_extended_trapezoid`
+- [x] `make_extended_trapezoid`
 - [ ] `make_extended_trapezoid_area`
 - [x] `make_gauss_pulse`
 - [x] `make_label`
@@ -272,6 +272,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `make_arbitrary_rf` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
 | `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
 | `make_arbitrary_grad` | no `first` or `last` |
+| `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property |
 
 ### Additional API
 
