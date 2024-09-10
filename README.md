@@ -210,7 +210,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [x] `make_delay`
 - [x] `make_digital_output_pulse`
 - [x] `make_extended_trapezoid`
-- [ ] `make_extended_trapezoid_area`
+- [x] `make_extended_trapezoid_area`
 - [x] `make_gauss_pulse`
 - [x] `make_label`
 - [x] `make_sinc_pulse`
@@ -251,6 +251,7 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | sigpy | **error** |
 | `make_adiabatic_pulse` | **error** |
 | `make_label` | `None` |
+| `make_extended_trapezoid_area` | **error** |
 
 ### Altered behaviour
 
