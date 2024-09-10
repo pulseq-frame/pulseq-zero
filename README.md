@@ -204,7 +204,7 @@ from pypulseq.traj_to_grad import traj_to_grad
 - [ ] `calc_rf_center`
 - [x] `make_adc`
 - [x] `make_adiabatic_pulse`
-- [ ] `make_arbitrary_grad`
+- [x] `make_arbitrary_grad`
 - [x] `make_arbitrary_rf`
 - [x] `make_block_pulse`
 - [x] `make_delay`
@@ -271,6 +271,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `make_gauss_pulse` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
 | `make_arbitrary_rf` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
 | `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
+| `make_arbitrary_grad` | no `first` or `last` |
 
 ### Additional API
 
