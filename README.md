@@ -161,37 +161,37 @@ from pypulseq.traj_to_grad import traj_to_grad
 
 - [x] `calc_SAR`
 - [ ] `Sequence`
-  - [ ] `__init__`
-  - [ ] `__str__`
+  - [x] `__init__`
+  - [x] `__str__`
   - [ ] `adc_times`
-  - [ ] `add_block`
+  - [x] `add_block`
   - [ ] `calculate_gradient_spectrum`
   - [ ] `calculate_kspace`
   - [ ] `calculate_kspacePP`
   - [x] `calculate_pns`
   - [x] `check_timing`
-  - [ ] `duration`
+  - [x] `duration`
   - [x] `evaluate_labels`
   - [ ] `flip_grad_axis`
   - [ ] `get_block`
-  - [ ] `get_definition`
+  - [x] `get_definition`
   - [ ] `get_extension_type_ID`
   - [ ] `get_extension_type_string`
   - [ ] `get_gradients`
   - [ ] `mod_grad_axis`
   - [x] `plot`
   - [x] `read`
-  - [ ] `register_adc_event`
-  - [ ] `register_grad_event`
-  - [ ] `register_label_event`
-  - [ ] `register_rf_event`
-  - [ ] `remove_duplicates`
+  - [x] `register_adc_event`
+  - [x] `register_grad_event`
+  - [x] `register_label_event`
+  - [x] `register_rf_event`
+  - [x] `remove_duplicates`
   - [ ] `rf_from_lib_data`
   - [ ] `rf_times`
   - [ ] `set_block`
-  - [ ] `set_definition`
+  - [x] `set_definition`
   - [ ] `set_extension_string_ID`
-  - [ ] `test_report`
+  - [x] `test_report`
   - [ ] `waveforms`
   - [ ] `waveforms_and_times`
   - [ ] `waveforms_export`
@@ -248,6 +248,7 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | `Sequence.plot` | `None` |
 | `Sequence.read` | **error** |
 | `Sequence.write` | `None` or `""` depending on `create_signature` |
+| `Sequence.register_*_event` | **error** - is only used internally |
 | sigpy | **error** |
 | `make_adiabatic_pulse` | **error** |
 | `make_label` | `None` |
@@ -277,6 +278,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
 | `make_arbitrary_grad` | no `first` or `last` |
 | `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
+| `Sequence` | way less internal bookkeeping, most variables are missing, reports etc. are not calculated |
 
 ### Additional API
 
