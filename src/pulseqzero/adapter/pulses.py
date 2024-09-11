@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pulseqzero.adapter import Opts, make_delay, make_trapezoid, calc_duration
+from ..adapter import Opts, make_delay, make_trapezoid, calc_duration
 
 
 def make_arbitrary_rf(

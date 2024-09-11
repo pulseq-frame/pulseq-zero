@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from copy import copy
 import numpy as np
-from pulseqzero.adapter import Opts, calc_duration
+from ..adapter import Opts, calc_duration
 
 
 def scale_grad(grad, scale):

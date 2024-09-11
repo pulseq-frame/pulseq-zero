@@ -1,11 +1,3 @@
-from sequence import Sequence
-from opts import Opts
-from delay import make_delay, make_trigger, make_digital_output_pulse
-from adc import make_adc
-from pulses import make_arbitrary_rf, make_block_pulse, make_gauss_pulse, make_sinc_pulse
-from grads import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
-
-
 def calc_SAR(file):
     pass
 
@@ -24,7 +16,7 @@ def calc_rf_bandwidth(rf, cutoff=0.5, return_axis=False, return_spectrum=False):
     bw = 0
     spectrum = np.zeros(1)
     w = np.zeros(1)
-    
+
     if return_spectrum and not return_axis:
         return bw, spectrum
     if return_axis:
@@ -42,3 +34,11 @@ def get_supported_labels():
         "REV", "SMS", "REF", "IMA", "NOISE", "PMC", "NOROT", "NOPOS", "NOSCL",
         "ONCE", "TRID",
     )
+
+
+from .opts import Opts
+from .sequence import Sequence
+from .delay import make_delay, make_trigger, make_digital_output_pulse
+from .adc import make_adc
+from .grads import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
+from .pulses import make_arbitrary_rf, make_block_pulse, make_gauss_pulse, make_sinc_pulse

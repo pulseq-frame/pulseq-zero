@@ -1,9 +1,9 @@
 from copy import copy, deepcopy
-from pulseqzero.adapter import Opts, calc_duration
+from ..adapter import calc_duration
+
 
 class Sequence:
     def __init__(self, system=None, use_block_cache=True):
-        self.system = Opts.default if system is None else system
         self.definitions = {}
         self.blocks = []
 
@@ -21,14 +21,23 @@ class Sequence:
         num_blocks = len(self.blocks)
         event_count = len(filter(lambda b: len(b) > 0, self.blocks))
         return duration, num_blocks, event_count
-    
+
     def get_definition(self, key):
         if key in self.definitions:
             return self.definitions[key]
         else:
             return ""
 
-    def plot(self, label, show_blocks, save, time_range, time_disp, grad_disp, plot_now):
+    def plot(
+        self,
+        label=str(),
+        show_blocks=False,
+        save=False,
+        time_range=(0, float("inf")),
+        time_disp="s",
+        grad_disp="kHz/m",
+        plot_now=True
+    ):
         pass
 
     def remove_duplicates(self, in_place=False):
@@ -36,7 +45,7 @@ class Sequence:
             return self
         else:
             return deepcopy(self)
-    
+
     def set_definition(self, key, value):
         self.definitions[key] = value
 

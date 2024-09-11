@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pulseqzero.adapter import Opts
+from ..adapter import Opts
 
 
 def make_adc(
@@ -21,7 +21,7 @@ def make_adc(
     if delay < system.adc_dead_time:
         delay = system.adc_dead_time
 
-    return Adc(num_samples, dwell, delay, freq_offset, phase_offset, system.adc_dead_time)
+    return Adc(num_samples, dwell, delay, freq_offset, phase_offset)
 
 
 @dataclass

@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 import pulseqzero
-pp = pulseqzero.facade
+pp = pulseqzero.pp_impl
 
 
 def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
@@ -122,8 +122,11 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # =========
     if write_seq:
         seq.write(seq_filename)
-    
+
     return seq
+
+
+main(1.0, True, False)
 
 
 # ============

@@ -46,7 +46,7 @@ seq.add_block(pp.make_delay(10e-3))
 After:
 ```python
 import pulseqzero
-pp = pulseqzero.pp_facade
+pp = pulseqzero.pp_impl
   
 # Use exactly as before...
 seq = pp.Sequence()
