@@ -8,7 +8,10 @@ def make_label(label, type, value):
 
 def calc_duration(*args):
     # We assume that all events have a duration property
-    return max(event.duration for event in args)
+    return max(
+        (event.duration for event in args if event is not None),
+        default=0.0
+    )
 
 
 def calc_rf_bandwidth(rf, cutoff=0.5, return_axis=False, return_spectrum=False):
@@ -37,8 +40,8 @@ def get_supported_labels():
 
 
 from .opts import Opts
-from .sequence import Sequence
 from .delay import make_delay, make_trigger, make_digital_output_pulse
 from .adc import make_adc
 from .grads import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
 from .pulses import make_arbitrary_rf, make_block_pulse, make_gauss_pulse, make_sinc_pulse
+from .sequence import Sequence

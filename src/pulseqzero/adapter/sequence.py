@@ -1,5 +1,7 @@
 from copy import copy, deepcopy
+import MRzeroCore
 from ..adapter import calc_duration
+from . import seq_convert
 
 
 class Sequence:
@@ -57,3 +59,8 @@ class Sequence:
             return ""
         else:
             return None
+
+    # What we do all of this for:
+    # To intercept pulseq calls and build an MR-zero sequence from it
+    def to_mr0(self) -> MRzeroCore.Sequence:
+        return seq_convert.convert(self)

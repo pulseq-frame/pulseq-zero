@@ -86,8 +86,7 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     )
 
     # Phase blip in the shortest possible time
-    dur = np.ceil(2 * np.sqrt(delta_k / system.max_slew) / 10e-6) * 10e-6
-    gy = pp.make_trapezoid(channel="y", system=system, area=delta_k, duration=dur)
+    gy = pp.make_trapezoid(channel="y", system=system, area=delta_k)
 
     # ======
     # CONSTRUCT SEQUENCE
@@ -132,6 +131,12 @@ main(1.0, True, False)
 # ============
 # OPTIMIZATION
 # ============
+import MRzeroCore as mr0
+
+with pulseqzero.mr0_mode():
+    seq = main(1.0, False, False).to_mr0()
+
+seq.plot_kspace_trajectory()
 
 start = pp0.simulate(lambda: main(torch.as_tensor(1.0), False, False), True)
 
