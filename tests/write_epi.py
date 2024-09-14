@@ -3,11 +3,11 @@ Demo low-performance EPI sequence without ramp-sampling.
 """
 
 import numpy as np
+import pulseqzero
+pp = pulseqzero.pp_impl
 
-import pypulseq as pp
 
-
-def main(plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
+def main(TI, plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     # ======
     # SETUP
     # ======
@@ -17,7 +17,7 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     Nx = 64
     Ny = 64
     slice_thickness = 3e-3  # Slice thickness
-    n_slices = 3
+    n_slices = 1
 
     # Set system limits
     system = pp.Opts(
@@ -32,6 +32,13 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     # ======
     # CREATE EVENTS
     # ======
+    # Create 180 degree inversion pulse
+    rf_inv = pp.make_block_pulse(
+        flip_angle=np.pi,
+        system=system,
+        duration=3e-3,
+    )
+
     # Create 90 degree slice selection pulse and gradient
     rf, gz, _ = pp.make_sinc_pulse(
         flip_angle=np.pi / 2,
@@ -83,6 +90,8 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     # Define sequence blocks
     for s in range(n_slices):
         rf.freq_offset = gz.amplitude * slice_thickness * (s - (n_slices - 1) / 2)
+        seq.add_block(rf_inv)
+        seq.add_block(pp.make_delay(TI))
         seq.add_block(rf, gz)
         seq.add_block(gx_pre, gy_pre, gz_reph)
         for i in range(Ny):
@@ -109,6 +118,8 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     if write_seq:
         seq.write(seq_filename)
 
+    return seq
+
 
 if __name__ == "__main__":
-    main(plot=True, write_seq=True)
+    main(1.0, plot=True, write_seq=True)

@@ -1,20 +1,17 @@
-import math
-
 import numpy as np
+import pulseqzero
+pp = pulseqzero.pp_impl
 
-import pypulseq as pp
 
-
-def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
+def main(flips, plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
     # ======
     # SETUP
     # ======
     # Create a new sequence object
     seq = pp.Sequence()
-    fov = 256e-3  # Define FOV and resolution
-    Nx = 256
-    Ny = 256
-    alpha = 10  # flip angle
+    fov = 192e-3  # Define FOV and resolution
+    Nx = 64
+    Ny = 64
     slice_thickness = 3e-3  # slice
     TR = 12e-3  # Repetition time
     TE = 5e-3  # Echo time
@@ -34,8 +31,8 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
     # ======
     # CREATE EVENTS
     # ======
-    rf, gz, _ = pp.make_sinc_pulse(
-        flip_angle=alpha * math.pi / 180,
+    _, gz, _ = pp.make_sinc_pulse(
+        flip_angle=0.1,
         duration=3e-3,
         slice_thickness=slice_thickness,
         apodization=0.42,
@@ -73,9 +70,9 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
                 - gz.flat_time / 2
                 - pp.calc_duration(gx) / 2
             )
-            / seq.grad_raster_time
+            / system.grad_raster_time
         )
-        * seq.grad_raster_time
+        * system.grad_raster_time
     )
     delay_TR = (
         np.ceil(
@@ -86,9 +83,9 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
                 - pp.calc_duration(gx)
                 - delay_TE
             )
-            / seq.grad_raster_time
+            / system.grad_raster_time
         )
-        * seq.grad_raster_time
+        * system.grad_raster_time
     )
 
     assert np.all(delay_TE >= 0)
@@ -102,6 +99,15 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
     # ======
     # Loop over phase encodes and define sequence blocks
     for i in range(Ny):
+        rf, gz, _ = pp.make_sinc_pulse(
+            flip_angle=flips[i],
+            duration=3e-3,
+            slice_thickness=slice_thickness,
+            apodization=0.42,
+            time_bw_product=4,
+            system=system,
+            return_gz=True,
+        )
         rf.phase_offset = rf_phase / 180 * np.pi
         adc.phase_offset = rf_phase / 180 * np.pi
         rf_inc = divmod(rf_inc + rf_spoiling_inc, 360.0)[1]
@@ -134,8 +140,6 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
     if plot:
         seq.plot()
 
-    seq.calculate_kspace()
-
     # Very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within
     # slew-rate limits
     rep = seq.test_report()
@@ -151,6 +155,8 @@ def main(plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.seq"):
 
         seq.write(seq_filename)
 
+    return seq
+
 
 if __name__ == "__main__":
-    main(plot=False, write_seq=True)
+    main(np.full((64, ), 10 * np.pi / 180), plot=False, write_seq=True)
