@@ -93,30 +93,41 @@ def convert(pp0) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(pp0, angle, phase) -> None:
-        pp0.angle = angle
-        pp0.phase = phase
+    def __init__(self, angle, phase) -> None:
+        self.angle = angle
+        self.phase = phase
+
+    def __repr__(self) -> str:
+        from math import pi
+        return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°)"
 
 
 class TmpSpoiler:
-    def __init__(pp0, duration, gx, gy, gz) -> None:
-        pp0.duration = torch.as_tensor(duration)
-        pp0.gradm = torch.stack([
+    def __init__(self, duration, gx, gy, gz) -> None:
+        self.duration = torch.as_tensor(duration)
+        self.gradm = torch.stack([
             torch.as_tensor(gx),
             torch.as_tensor(gy),
             torch.as_tensor(gz)
         ])
 
+    def __repr__(self) -> str:
+        return f"Spoiler(gradm={self.gradm}, duration={self.duration})"
+
 
 class TmpAdc:
-    def __init__(pp0, event_time, gradm, phase) -> None:
-        pp0.event_time = event_time
-        pp0.gradm = gradm
-        pp0.phase = phase
+    def __init__(self, event_time, gradm, phase) -> None:
+        self.event_time = event_time
+        self.gradm = gradm
+        self.phase = phase
+
+    def __repr__(self) -> str:
+        from math import pi
+        return f"Adc(phase={self.phase * 180 / pi}°, total_gradm={self.gradm.sum(0)}, total_time={self.event_time.sum(0)})"
 
 
 def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSpoiler]:
-    t = rf.delay + rf.duration / 2
+    t = rf.delay + rf.shape_dur / 2
     duration = calc_duration(rf, grad_x, grad_y, grad_z)
 
     gx1 = gx2 = gy1 = gy2 = gz1 = gz2 = 0.0

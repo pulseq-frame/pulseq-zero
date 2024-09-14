@@ -24,6 +24,7 @@ def make_arbitrary_rf(
         system = Opts.default
     if dwell is None:
         dwell = system.rf_raster_time
+    delay = max(delay, system.rf_dead_time)
 
     duration = len(signal) * dwell
 
@@ -80,6 +81,7 @@ def make_block_pulse(
 ):
     if system is None:
         system = Opts.default
+    delay = max(delay, system.rf_dead_time)
 
     if duration is None:
         if bandwidth is None:
@@ -128,6 +130,7 @@ def make_gauss_pulse(
 ):
     if system is None:
         system = Opts.default
+    delay = max(delay, system.rf_dead_time)
 
     rf = Pulse(
         flip_angle,
@@ -192,6 +195,7 @@ def make_sinc_pulse(
 ):
     if system is None:
         system = Opts.default
+    delay = max(delay, system.rf_dead_time)
 
     rf = Pulse(
         flip_angle,
@@ -213,11 +217,11 @@ def make_sinc_pulse(
         area = BW / slice_thickness * duration
 
         gz = make_trapezoid(
-            "z", system=system,
-            flat_area=area, flat_time=duration
+            "z", max_grad=max_grad, max_slew=max_slew,
+            flat_time=duration, flat_area=area
         )
         gzr = make_trapezoid(
-            "z", system=system,
+            "z", max_grad=max_grad, max_slew=max_slew,
             area=-area * (1 - center_pos) - 0.5 * (gz.area - area)
         )
 
@@ -229,7 +233,7 @@ def make_sinc_pulse(
         ret_val = (*ret_val, gz, gzr)
 
     if return_delay and rf.ringdown_time > 0:
-        delay = make_delay(calc_duration(rf) + rf.ringdown_time)
+        delay = make_delay(rf.duration)
         ret_val = (*ret_val, delay)
 
     return ret_val
