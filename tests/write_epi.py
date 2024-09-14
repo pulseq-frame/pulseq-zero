@@ -3,20 +3,17 @@ Demo low-performance EPI sequence without ramp-sampling.
 """
 
 import numpy as np
-import torch
-
-import pulseqzero as pp0
-pp = pp0.facade
+import pulseqzero
+pp = pulseqzero.pp_impl
 
 
-def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
-         seq_filename: str = "epi_pypulseq.seq"):
+def main(TI, plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"):
     # ======
     # SETUP
     # ======
     seq = pp.Sequence()  # Create a new sequence object
     # Define FOV and resolution
-    fov = 192e-3
+    fov = 220e-3
     Nx = 64
     Ny = 64
     slice_thickness = 3e-3  # Slice thickness
@@ -36,7 +33,11 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # CREATE EVENTS
     # ======
     # Create 180 degree inversion pulse
-    rf_inv = pp.make_block_pulse(flip_angle=np.pi, duration=1e-3, system=system)
+    rf_inv = pp.make_block_pulse(
+        flip_angle=np.pi,
+        system=system,
+        duration=3e-3,
+    )
 
     # Create 90 degree slice selection pulse and gradient
     rf, gz, _ = pp.make_sinc_pulse(
@@ -60,12 +61,6 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
         system=system,
         amplitude=k_width / readout_time,
         flat_time=flat_time,
-    )
-    gx_spoil = pp.make_trapezoid(
-        channel="x",
-        system=system,
-        amplitude=2 * gx.area,
-        duration=2e-3
     )
     adc = pp.make_adc(
         num_samples=Nx,
@@ -96,7 +91,7 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     for s in range(n_slices):
         rf.freq_offset = gz.amplitude * slice_thickness * (s - (n_slices - 1) / 2)
         seq.add_block(rf_inv)
-        seq.add_block(pp.make_delay(TI), gx_spoil)
+        seq.add_block(pp.make_delay(TI))
         seq.add_block(rf, gz)
         seq.add_block(gx_pre, gy_pre, gz_reph)
         for i in range(Ny):
@@ -122,63 +117,9 @@ def main(TI: torch.Tensor | np.ndarray, plot: bool, write_seq: bool,
     # =========
     if write_seq:
         seq.write(seq_filename)
-    
+
     return seq
 
 
-# ============
-# OPTIMIZATION
-# ============
-
-start = pp0.simulate(lambda: main(torch.as_tensor(1.0), False, False), True)
-
-TI_hist = []
-avg_hist = []
-csf_hist = []
-loss_hist = []
-
-def update(TI, reco, iter):
-    avg = reco.abs().mean()
-    csf = reco[33, 37].abs()
-    loss = csf - avg
-
-    TI_hist.append(TI.clone().detach())
-    avg_hist.append(avg.detach())
-    csf_hist.append(csf.detach())
-    loss_hist.append(loss.detach())
-
-    if iter % 10 == 9:
-        import matplotlib.pyplot as plt
-        vmax = max(start.abs().max(), reco.abs().max().detach())
-        plt.figure(figsize=(7, 5), dpi=120)
-        plt.subplot(221)
-        plt.title("Start")
-        plt.imshow(start.abs().T, origin="lower", vmin=0, cmap="gray")
-        plt.axis("off")
-        plt.subplot(222)
-        plt.title("Optimized")
-        plt.imshow(reco.detach().abs().T, origin="lower", vmin=0, cmap="gray")
-        plt.axis("off")
-        plt.subplot(223)
-        plt.title("Inversion Time [s]")
-        plt.plot(TI_hist)
-        plt.xlabel("Iteration")
-        plt.grid()
-        plt.subplot(224)
-        plt.title("Loss")
-        plt.plot(loss_hist, label="loss")
-        plt.plot(avg_hist, label="mean signal")
-        plt.plot(csf_hist, label="csf signal")
-        plt.xlabel("Iteration")
-        plt.grid()
-        plt.legend(loc="upper right")
-        plt.show()
-    
-    return loss
-
-
-# Try to find the optimal inversion time with optimization
-TI = pp0.optimize(lambda x: main(x, False, False), update, 150, torch.as_tensor(1.0), 0.05)
-# Export the sequence with fluid supression
-main(TI, plot=True, write_seq=True, seq_filename="epi_optimized.seq")
- 
+if __name__ == "__main__":
+    main(1.0, plot=True, write_seq=True)
