@@ -3,12 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import MRzeroCore as mr0
 import pulseqzero
+from time import time
 
 # Import the sequences from their (slightly modified) scripts
 from write_epi import main as build_epi
 from write_gre import main as build_gre
 
-data = mr0.VoxelGridPhantom.load("tests/moritz.npz").build()
+data = mr0.VoxelGridPhantom.load("moritz.npz").build()
 
 
 def simulate(seq_func):
@@ -20,10 +21,10 @@ def simulate(seq_func):
     return mr0.reco_adjoint(signal, seq.get_kspace(), (64, 64, 1), (0.192, 0.192, 1))
 
 
-def plot_results(start, best, loss_hist, param_hist):
-    plt.figure(figsize=(7, 7), dpi=120)
+def plot_results(start, best, loss_hist, plot_param_hist):
+    plt.figure(figsize=(9, 7), dpi=200)
     plt.subplot(221)
-    plt.title("Magnitude")
+    plt.title("Start")
     mr0.util.imshow(start.abs(), vmin=0, cmap="grey")
     plt.colorbar()
     plt.subplot(222)
@@ -32,12 +33,15 @@ def plot_results(start, best, loss_hist, param_hist):
     plt.colorbar()
     plt.subplot(223)
     plt.title("Loss")
-    plt.plot(loss_hist)
+    plt.plot([l / loss_hist[0] for l in loss_hist])
+    plt.xlabel("iteration")
     plt.grid()
     plt.subplot(224)
     plt.title("Otim. param")
-    plt.plot(param_hist)
+    plot_param_hist()
+    plt.xlabel("iteration")
     plt.grid()
+    # plt.subplots_adjust(wspace=0.2)
     plt.show()
 
 
@@ -62,6 +66,7 @@ TI_hist = []
 
 start = epi_sim(TI)
 
+t_start = time()
 for i in range(100):
     optimizer.zero_grad()
     reco = epi_sim(TI)
@@ -77,11 +82,16 @@ for i in range(100):
     loss_hist.append(loss.item())
     TI_hist.append(TI.item())
     print(f"{i+1} / 100: TI={TI.item()} | loss={loss.item()}")
+t_end = time()
 
+print(f"Optimization took {t_end - t_start} s")
 best = epi_sim(TI_hist[np.argmin(loss_hist)])
 
 # Plot the optimization result
-plot_results(start, best, loss_hist, TI_hist)
+def plot_TI_hist():
+    plt.plot(TI_hist)
+    plt.ylabel("Inversion time [s]")
+plot_results(start, best, loss_hist, plot_TI_hist)
 
 
 # ==========================================
@@ -104,6 +114,7 @@ loss_hist = []
 
 start = gre_sim(flips)
 
+t_start = time()
 for i in range(100):
     optimizer.zero_grad()
     reco = gre_sim(flips)
@@ -115,9 +126,15 @@ for i in range(100):
     loss_hist.append(loss.item())
     flip_hist.append(flips.detach().numpy().copy())
     print(f"{i+1} / 100: loss={loss.item()}")
+t_end = time()
 
+print(f"Optimization took {t_end - t_start} s")
 best = gre_sim(flip_hist[np.argmin(loss_hist)])
 
 # Plot the optimization result
-flip_hist = np.stack(flip_hist, 0) * 180 / np.pi
-plot_results(start, best, loss_hist, flip_hist)
+def plot_flip_hist():
+    cmap = plt.get_cmap("viridis")
+    for i in range(64):
+        plt.plot([f[i] for f in flip_hist], color=cmap(i / 63))
+    plt.ylabel("Flip angles [°]")
+plot_results(start, best, loss_hist, plot_flip_hist)
