@@ -9,11 +9,11 @@ At the same time, the required changes to the sequence code are minimal; Pulseq-
 
 ## Table of contents
 
-1. [General Information](1-general-information)
-2. [Usage](2-usage)
-3. [Development](3-development)
-4. [API](4-api)
-5. [References](5-references)
+1. [General Information](#1-general-information)
+2. [Usage](#2-usage)
+3. [Development](#3-development)
+4. [API](#4-api)
+5. [References](#5-references)
 
 
 ## 1. General Information
@@ -32,12 +32,12 @@ Pulseq-zero was displayed at [ESMRMB 2024](https://www.esmrmb2024.org/)!
 You can view the abstract here: [abstract/abstract.md](abstract/abstract.md).
 This project is affiliated with MR-zero and PDG but none of the other technologies.
 It relies on the following amazing projects:
-- Python[^1] is the programming language used for Pulseq-zero
-- Pulseq[^2] is a vendor-agnostic library and file format for sequence definition and transfer to real systems
-- PyPulseq[^3] is the port of Pulseq to Python
-- MR-zero[^4] is a digital twin of the full measurement and reconstruction pipeline for sequence optimization and discovery
-- PyTorch[^5] is an ecosystem of tools for efficient tensor math with GPU accelleration, autograd through backpropagation and a wide variety of optimizers
-- PDG[^6] (short for Phase Distribution Graphs) is a state-of-the-art Bloch simulation that produces accurate MRI signals for any sequence, orders of magnitude faster than other approaches
+- [Python](https://www.python.org/) is the programming language used for Pulseq-zero
+- [Pulseq](https://pubmed.ncbi.nlm.nih.gov/27271292/) is a vendor-agnostic library and file format for sequence definition and transfer to real systems
+- [PyPulseq](https://joss.theoj.org/papers/10.21105/joss.01725) is the port of Pulseq to Python
+- [MR-zero](https://onlinelibrary.wiley.com/doi/full/10.1002/mrm.28727) is a digital twin of the full measurement and reconstruction pipeline for sequence optimization and discovery
+- [PyTorch](https://arxiv.org/abs/1912.01703) is an ecosystem of tools for efficient tensor math with GPU accelleration, autograd through backpropagation and a wide variety of optimizers
+- [PDG](https://onlinelibrary.wiley.com/doi/full/10.1002/mrm.30055) (short for Phase Distribution Graphs) is a state-of-the-art Bloch simulation that produces accurate MRI signals for any sequence, orders of magnitude faster than other approaches
 
 
 ## 2. Usage
