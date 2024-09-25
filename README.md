@@ -23,7 +23,7 @@ Pulseq-zero can be cloned from this repository but is also hosted on [PyPI](http
 pip install pulseqzero
 ```
 
-> ![NOTE]
+> [!NOTE]
 > Pulseq-zero does not define or require any dependencies.
 > That being said, it models the API of PyPulseq 1.4.2 and is only tested with that version of PyPulseq;
 > Using it for scripts that are written for other versions of PyPulseq might lead to unexpected results or errors if function names, arguments or behaviour changed.
