@@ -1,32 +1,49 @@
 # Pulseq-zero
 
-This project aims to join pulseq with MR-zero:
-Use pypulseq for sequence programming and insert the sequence definition directly in MR-zero for simulations, optimization and more!
+Pulseq-zero allows to define MRI sequences with the Python[^1] port of Pulseq[^2]: PyPulseq[^3], and use them within MR-zero[^4].
+This way they are deeply integrated in a differentiable digital twin, enabling not only the simulation of the defined sequence but also the efficient optimization of any sequence parameter and any loss function, using the power of PyTorch[^5] and gradient-descent with backpropagation.
+
+Pulseq-zero uses PDG[^6], a fast, analytical and physically exact simulation model that calculates signals that are comparable to in-vivo measurements within seconds.
+At the same time, the required changes to the sequence code are minimal; Pulseq-zero exports the optimized sequence works by simply using the installed PyPulseq without any interference.
 
 
-Built for [pypulseq 1.4.2](https://github.com/imr-framework/pypulseq/tree/v1.4.2)
+## Table of contents
+
+1. [General Information](1-general-information)
+2. [Usage](2-usage)
+3. [Development](3-development)
+4. [API](4-api)
+5. [References](5-references)
 
 
-## Development
+## 1. General Information
 
-1. Create a virtual environment that can use globally installed packages
-  ```bash
-  python -m venv --system-site-packages .venv
-  ```
-2. Activate this environment
-  ```bash
-  .venv\Scripts\activate
-  ```
-3. Install pulseq-zero in the virtual enviornment in editable mode
-  ```bash
-  pip install --editable .
-  ```
+Pulseq-zero can be cloned from this repository but is also hosted on [PyPI](https://pypi.org/project/pulseqzero/), install it locally with:
+```bash
+pip install pulseqzero
+```
+
+> ![NOTE]
+> Pulseq-zero does not define or require any dependencies.
+> That being said, it models the API of PyPulseq 1.4.2 and is only tested with that version of PyPulseq;
+> Using it for scripts that are written for other versions of PyPulseq might lead to unexpected results or errors if function names, arguments or behaviour changed.
+
+Pulseq-zero was displayed at [ESMRMB 2024](https://www.esmrmb2024.org/)!
+You can view the abstract here: [abstract/abstract.md](abstract/abstract.md).
+This project is affiliated with MR-zero and PDG but none of the other technologies.
+It relies on the following amazing projects:
+- Python[^1] is the programming language used for Pulseq-zero
+- Pulseq[^2] is a vendor-agnostic library and file format for sequence definition and transfer to real systems
+- PyPulseq[^3] is the port of Pulseq to Python
+- MR-zero[^4] is a digital twin of the full measurement and reconstruction pipeline for sequence optimization and discovery
+- PyTorch[^5] is an ecosystem of tools for efficient tensor math with GPU accelleration, autograd through backpropagation and a wide variety of optimizers
+- PDG[^6] (short for Phase Distribution Graphs) is a state-of-the-art Bloch simulation that produces accurate MRI signals for any sequence, orders of magnitude faster than other approaches
 
 
-## Usage
+## 2. Usage
 
-Example scripts are provided in 'pulseqzero/seq_examples'.
-They are modified versions of the pypulseq 1.4.2 examples.
+Example scripts are provided in [pulseqzero/seq_examples](pulseqzero/seq_examples).
+They are modified versions of the PyPulseq 1.4.2 examples found [here](https://github.com/imr-framework/pypulseq/tree/v1.4.2/pypulseq/seq_examples/scripts).
 The changes that are typically necessary to convert from a pypulseq sequence script to Pulseq-zero are as follows:
 
 ### Import pulseq
@@ -113,51 +130,38 @@ The sequence definition can now be used in many ways!
   seq.write("tse_optim.seq")
   ```
 
-## API
 
-The following pypulseq methods and classes currently exist in Pulseq-zero.
-If your sequence scripts rely methods that are not listed here, Pulseq-zero might not yet be usable.
-Please create an issue with the request for the missing functionality.
+## 3. Development
 
-Pypulseq 1.4.2 has the following re-exports that are expected to be used frequently.
-They fall into different categories as specified below, which also are the roadmap for pulseq-zero development.
+If you want to contribute to Pulseq-zero or make local changes to it, the easiest way is to install it locally in editable mode:
 
-```python
-from pypulseq.SAR.SAR_calc import calc_SAR
-from pypulseq.Sequence.sequence import Sequence
-from pypulseq.add_gradients import add_gradients
-from pypulseq.align import align
-from pypulseq.calc_duration import calc_duration
-from pypulseq.calc_ramp import calc_ramp
-from pypulseq.calc_rf_bandwidth import calc_rf_bandwidth
-from pypulseq.calc_rf_center import calc_rf_center
-from pypulseq.make_adc import make_adc
-from pypulseq.make_adiabatic_pulse import make_adiabatic_pulse
-from pypulseq.make_arbitrary_grad import make_arbitrary_grad
-from pypulseq.make_arbitrary_rf import make_arbitrary_rf
-from pypulseq.make_block_pulse import make_block_pulse
-from pypulseq.make_sigpy_pulse import *
-from pypulseq.make_delay import make_delay
-from pypulseq.make_digital_output_pulse import make_digital_output_pulse
-from pypulseq.make_extended_trapezoid import make_extended_trapezoid
-from pypulseq.make_extended_trapezoid_area import make_extended_trapezoid_area
-from pypulseq.make_gauss_pulse import make_gauss_pulse
-from pypulseq.make_label import make_label
-from pypulseq.make_sinc_pulse import make_sinc_pulse
-from pypulseq.make_trapezoid import make_trapezoid
-from pypulseq.sigpy_pulse_opts import SigpyPulseOpts
-from pypulseq.make_trigger import make_trigger
-from pypulseq.opts import Opts
-from pypulseq.points_to_waveform import points_to_waveform
-from pypulseq.rotate import rotate
-from pypulseq.scale_grad import scale_grad
-from pypulseq.split_gradient import split_gradient
-from pypulseq.split_gradient_at import split_gradient_at
-from pypulseq.supported_labels_rf_use import get_supported_labels
-from pypulseq.traj_to_grad import traj_to_grad
-```
+1. Create a virtual environment that can use globally installed packages
+  ```bash
+  python -m venv --system-site-packages .venv
+  ```
+2. Activate this environment
+  ```bash
+  # Windows CMD
+  .venv\Scripts\activate
+  # Linux bash
+  $ source .venv/bin/activate
+  ```
+3. Install pulseq-zero in the virtual enviornment in editable mode
+  ```bash
+  pip install --editable .
+  ```
 
-### TODO
+
+## 4. API
+
+The following is a list of all functions and methods exposed in PyPulseq 1.4.2 when importing it directly.
+Pulseq-zero tries to provide all of those - it is currently not planned to cover other functions that are available internally in PyPulseq but not exposed this way.
+If you need one of them, file an issue or submit a pull request.
+
+Not all functions on this list will be supported: Pulseq-zero does not aim to translate functions that are not differentiable or would require to emulate large portions of inner workings of PyPulseq if they are rarely used, other functions will not do any actual work (like test reports) as they are not useful when simulating / optimizing sequences.
+The list tracks the progress on deciding which function to support and implementing them if desired.
+Functions that behave differently to PyPulseq are listed in the following sections.
+
 
 - [x] `calc_SAR`
 - [ ] `Sequence`
@@ -282,5 +286,37 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 
 ### Additional API
 
-This API does not exist in pulseq and is provided for simulation, optimization and other tasks.
+This API is where Pulseq-zero comes into play:
 
+In the `mr0_mode` context, all PyPulseq functions are swapped for Pulseq-zero implementations that track all calls so that the sequence can be converted to MR-zero later:
+```python
+with pulseqzero.mr0_mode():
+  seq = build_my_seq()
+```
+
+If you use some functions that are only available in PyPulseq but not Pulseq-zero (PNS computations or similar), you can check if `mr0_mode` is activated:
+```python
+if pulseqzero.is_mr0_mode():
+  pass
+else:
+  seq.calculate_pns()
+```
+
+Finally, the sequence object returned in `mr0_mode` has one method that is not available otherwise and forms the central point of Pulseq-zero:
+```python
+with pulseqzero.mr0_mode():
+  seq = build_my_seq()
+  # This function here
+  mr0_seq = seq.to_mr0()
+  # Now do some simulations with mr0_seq!
+```
+
+
+## 5. References
+
+[^1]: python programming language: https://www.python.org/
+[^2]: Layton K et al: Pulseq: A rapid and hardware-independent pulse sequence prototyping framework. MRM 2017, [doi: 10.1002/mrm.26235](https://pubmed.ncbi.nlm.nih.gov/27271292/)
+[^3]: Keerthi SR et al: PyPulseq: A Python Package for MRI Pulse Sequence Design. JOSS 2019, [doi: 10.21105/joss.01725](https://joss.theoj.org/papers/10.21105/joss.01725)
+[^4]: Loktyushin A et al: MRzero - Automated discovery of MRI sequences using supervised learning. MRM 2021, [doi: 10.1002/mrm.28727](https://onlinelibrary.wiley.com/doi/full/10.1002/mrm.28727)
+[^5]: Paszke A et al: PyTorch: An Imperative Style, High-Performance Deep Learning Library. arxiv 2019, [doi: 10.48550/arXiv.1912.01703](https://arxiv.org/abs/1912.01703)
+[^6]: Endres J et al: Phase distribution graphs for fast, differentiable, and spatially encoded Bloch simulations of arbitrary MRI sequences. MRM 2024, [doi: 10.1002/mrm.30055](https://onlinelibrary.wiley.com/doi/full/10.1002/mrm.30055)
