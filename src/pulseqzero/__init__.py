@@ -7,6 +7,7 @@ class Impl:
 
     def use_pypulseq(self):
         import pypulseq as pp
+        self.mr0_mode = False
         self.calc_SAR = pp.calc_SAR
         self.Sequence = pp.Sequence
         self.add_gradients = pp.add_gradients
@@ -44,6 +45,7 @@ class Impl:
 
     def use_pulseqzero(self):
         from . import adapter as ad
+        self.mr0_mode = True
         self.calc_SAR = ad.calc_SAR
         self.Sequence = ad.Sequence
         # self.add_gradients = ad.add_gradients
@@ -90,3 +92,6 @@ def mr0_mode():
         yield
     finally:
         pp_impl.use_pypulseq()
+
+def is_mr0_mode() -> bool:
+    return pp_impl.mr0_mode
