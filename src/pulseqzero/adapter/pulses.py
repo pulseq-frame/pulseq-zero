@@ -18,6 +18,7 @@ def make_arbitrary_rf(
     slice_thickness=0,
     system=None,
     time_bw_product=0,
+    shim_array=None,
     use=str(),
 ):
     if system is None:
@@ -34,7 +35,8 @@ def make_arbitrary_rf(
         freq_offset,
         phase_offset,
         delay,
-        system.rf_ringdown_time
+        system.rf_ringdown_time,
+        shim_array
     )
     ret_val = (rf, )
 
@@ -77,6 +79,7 @@ def make_block_pulse(
     phase_offset=0,
     return_delay=False,
     system=None,
+    shim_array=None,
     use="",
 ):
     if system is None:
@@ -97,7 +100,8 @@ def make_block_pulse(
         freq_offset,
         phase_offset,
         delay,
-        system.rf_ringdown_time
+        system.rf_ringdown_time,
+        shim_array
     )
 
     if system.rf_dead_time > rf.delay:
@@ -126,6 +130,7 @@ def make_gauss_pulse(
     slice_thickness=0,
     system=None,
     time_bw_product=4,
+    shim_array=None,
     use=""
 ):
     if system is None:
@@ -138,7 +143,8 @@ def make_gauss_pulse(
         freq_offset,
         phase_offset,
         delay,
-        system.rf_ringdown_time
+        system.rf_ringdown_time,
+        shim_array
     )
     ret_val = (rf, )
 
@@ -191,6 +197,7 @@ def make_sinc_pulse(
     slice_thickness=0,
     system=None,
     time_bw_product=4,
+    shim_array=None,
     use=""
 ):
     if system is None:
@@ -203,7 +210,8 @@ def make_sinc_pulse(
         freq_offset,
         phase_offset,
         delay,
-        system.rf_ringdown_time
+        system.rf_ringdown_time,
+        shim_array
     )
     ret_val = (rf, )
 
@@ -247,6 +255,7 @@ class Pulse:
     phase_offset: ...
     delay: ...
     ringdown_time: ...  # important for duration
+    shim_array: ... # requres rfshim pulseq in pulseq mode
 
     @property
     def duration(self):

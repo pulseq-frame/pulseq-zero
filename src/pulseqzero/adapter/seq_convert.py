@@ -68,6 +68,8 @@ def convert(pp0) -> mr0.Sequence:
         rep_out = seq.new_rep(event_count)
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
+        if rep_in[0].shim_array is not None:
+            rep_out.pulse.shim_array = rep_in[0].shim_array
         if rep_out.pulse.angle > 100 * torch.pi / 180:
             rep_out.pulse.usage = mr0.PulseUsage.REFOC
         else:
@@ -93,13 +95,14 @@ def convert(pp0) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase) -> None:
+    def __init__(self, angle, phase, shim_array) -> None:
         self.angle = angle
         self.phase = phase
+        self.shim_array = shim_array
 
     def __repr__(self) -> str:
         from math import pi
-        return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°)"
+        return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°, shim_array={self.shim_array})"
 
 
 class TmpSpoiler:
@@ -140,7 +143,7 @@ def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSp
 
     return (
         TmpSpoiler(t, gx1, gy1, gz1),
-        TmpPulse(rf.flip_angle, rf.phase_offset),
+        TmpPulse(rf.flip_angle, rf.phase_offset, rf.shim_array),
         TmpSpoiler(duration - t, gx2, gy2, gz2)
     )
 
