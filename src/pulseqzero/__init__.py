@@ -5,6 +5,14 @@ class Impl:
     def __init__(self):
         self.use_pypulseq()
 
+        # https://gitlab.cs.fau.de/mrzero/pypulseq_rfshim
+        # Make pre-defined shims available if rfshim pulseq is installed
+        try:
+            import pypulseq.set_tx_mode
+            self.set_tx_mode = pypulseq.set_tx_mode
+        except ImportError:
+            pass
+
     def use_pypulseq(self):
         import pypulseq as pp
         self.mr0_mode = False
