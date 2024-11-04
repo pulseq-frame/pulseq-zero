@@ -9,7 +9,7 @@ from time import time
 from write_epi import main as build_epi
 from write_gre import main as build_gre
 
-data = mr0.VoxelGridPhantom.load("moritz.npz").build()
+data = mr0.VoxelGridPhantom.load("quantalized.npz").build()
 
 
 def simulate(seq_func):
