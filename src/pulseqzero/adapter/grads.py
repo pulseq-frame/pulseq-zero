@@ -78,6 +78,11 @@ def make_trapezoid(
 
         if rise_time is None:
             rise_time = abs(new_amp) / max_slew
+            rise_time = (
+                np.ceil(rise_time / system.grad_raster_time) * system.grad_raster_time
+            )
+            if rise_time == 0:
+                rise_time = system.grad_raster_time
         if fall_time is None:
             fall_time = rise_time
 
@@ -86,7 +91,7 @@ def make_trapezoid(
             assert area is not None
 
             if rise_time is None:
-                _, rise_time, flat_time, fall_time = calc_params_for_area(area, max_slew, max_grad)
+                _, rise_time, flat_time, fall_time = calc_params_for_area(area, max_slew, max_grad, system.grad_raster_time)
                 assert duration >= rise_time + flat_time + fall_time
 
                 dC = 1 / abs(2 * max_slew)
@@ -102,6 +107,11 @@ def make_trapezoid(
 
         if rise_time is None:
             rise_time = abs(new_amp) / max_slew
+            rise_time = (
+                np.ceil(rise_time / system.grad_raster_time) * system.grad_raster_time
+            )
+            if rise_time == 0:
+                rise_time = system.grad_raster_time
         if fall_time is None:
             fall_time = rise_time
         flat_time = duration - rise_time - fall_time
@@ -111,7 +121,7 @@ def make_trapezoid(
 
     else:
         assert area is not None
-        new_amp, rise_time, flat_time, fall_time = calc_params_for_area(area, max_slew, max_grad)
+        new_amp, rise_time, flat_time, fall_time = calc_params_for_area(area, max_slew, max_grad, system.grad_raster_time)
 
     return TrapGrad(
         channel,
@@ -123,15 +133,28 @@ def make_trapezoid(
     )
 
 
-def calc_params_for_area(area, max_slew, max_grad):
+def calc_params_for_area(area, max_slew, max_grad, grad_raster_time):
     rise_time = (abs(area) / max_slew)**0.5
+    rise_time = (
+        np.ceil(rise_time / grad_raster_time) * grad_raster_time
+    )
+    if rise_time == 0:
+        rise_time = grad_raster_time
     amplitude = area / rise_time
     t_eff = rise_time
 
     if abs(amplitude) > max_grad:
         t_eff = abs(area) / max_grad
+        t_eff = (
+            np.ceil(t_eff / grad_raster_time) * grad_raster_time
+        )
         amplitude = area / t_eff
         rise_time = abs(amplitude) / max_slew
+        rise_time = (
+            np.ceil(rise_time / grad_raster_time) * grad_raster_time
+        )
+        if rise_time == 0:
+            rise_time = grad_raster_time
 
     flat_time = t_eff - rise_time
     fall_time = rise_time
