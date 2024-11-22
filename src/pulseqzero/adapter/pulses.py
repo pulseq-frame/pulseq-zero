@@ -230,7 +230,7 @@ def make_sinc_pulse(
         )
         gzr = make_trapezoid(
             "z", system=system,
-            flat_area=area, flat_time=duration
+            area=-area * (1 - center_pos) - 0.5 * (gz.area - area)
         )
 
         if rf.delay > gz.rise_time:
