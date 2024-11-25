@@ -42,7 +42,7 @@ It relies on the following amazing projects:
 
 ## 2. Usage
 
-Example scripts are provided in [pulseqzero/seq_examples](pulseqzero/seq_examples).
+Example scripts are provided in the [tests](tests) folder.
 They are modified versions of the PyPulseq 1.4.2 examples found [here](https://github.com/imr-framework/pypulseq/tree/v1.4.2/pypulseq/seq_examples/scripts).
 The changes that are typically necessary to convert from a pypulseq sequence script to Pulseq-zero are as follows:
 
