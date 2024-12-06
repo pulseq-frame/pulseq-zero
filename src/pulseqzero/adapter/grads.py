@@ -22,17 +22,17 @@ def split_gradient(grad, system):
     ramp_up = make_extended_trapezoid(
         channel=grad.channel,
         amplitudes=np.array([0, grad.amplitude]),
-        times=np.ndarray([0, grad.rise_time])
+        times=np.array([0, grad.rise_time])
     )
     flat_top = make_extended_trapezoid(
         channel=grad.channel,
         amplitudes=np.array([grad.amplitude, grad.amplitude]),
-        times=np.ndarray([grad.rise_time, grad.rise_time + grad.flat_time])
+        times=np.array([grad.rise_time, grad.rise_time + grad.flat_time])
     )
     ramp_down = make_extended_trapezoid(
         channel=grad.channel,
         amplitudes=np.array([grad.amplitude, 0]),
-        times=np.ndarray([grad.rise_time + grad.flat_time, total_duration])
+        times=np.array([grad.rise_time + grad.flat_time, total_duration])
     )
 
     return ramp_up, flat_top, ramp_down
