@@ -160,7 +160,7 @@ def parse_adc(adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
     duration = calc_duration(adc, grad_x, grad_y, grad_z)
     time = torch.cat([
         torch.as_tensor(0.0).view((1, )),
-        adc.delay + torch.arange(adc.num_samples) * adc.dwell,
+        adc.delay + (torch.arange(adc.num_samples) + 0.5) * adc.dwell,
         torch.as_tensor(duration).view((1, ))
     ])
 
@@ -190,7 +190,7 @@ def integrate(grad, t):
     if isinstance(grad, TrapGrad):
         # heaviside could be replaced with error function for differentiability
         def h(x):
-            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5))
+            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype))
 
         # https://www.desmos.com/calculator/0q5co02ecm
 
