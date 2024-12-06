@@ -154,6 +154,49 @@ If you want to contribute to Pulseq-zero or make local changes to it, the easies
 
 ## 4. API
 
+### Additional API
+
+Pulseq requires many events to align with the block-, gradient- or ADC raster.
+For this, rounding is necessary, which is not differentiable.
+As a workaround, Pulseq-zero includes differentiable rounding functions, which are wrappers around the corresponding PyTorch functions, but which behave like the identity function for backpropagation.
+This means they are invisible to the calculation of gradients, which is okay as long as the rounding is small compared to the changes to the optimized parameters, which is typically the case with small raster times.
+
+```python
+my_param = torch.tensor(1.5, requires_grad=True)
+some_calc = pp.round(torch.sin(my_param))
+some_calc.backward()
+
+assert some_calc == 1
+assert my_param.grad == torch.cos(my_param)
+```
+Use pulseq-zeros rounding functions instead of e.g. those of numpy or torch if it is applied to timings (or other sequence properties) that are part of an optimization.
+
+In the `mr0_mode` context, all PyPulseq functions are swapped for Pulseq-zero implementations that track all calls so that the sequence can be converted to MR-zero later:
+```python
+with pulseqzero.mr0_mode():
+  seq = build_my_seq()
+```
+
+If you use some functions that are only available in PyPulseq but not Pulseq-zero (PNS computations or similar), you can check if `mr0_mode` is activated:
+```python
+if pulseqzero.is_mr0_mode():
+  pass
+else:
+  seq.calculate_pns()
+```
+
+Finally, the sequence object returned in `mr0_mode` has one method that is not available otherwise and forms the central point of Pulseq-zero:
+```python
+with pulseqzero.mr0_mode():
+  seq = build_my_seq()
+  # This function here
+  mr0_seq = seq.to_mr0()
+  # Now do some simulations with mr0_seq!
+```
+
+
+### PyPulseq API
+
 The following is a list of all functions and methods exposed in PyPulseq 1.4.2 when importing it directly.
 Pulseq-zero tries to provide all of those - it is currently not planned to cover other functions that are available internally in PyPulseq but not exposed this way.
 If you need one of them, file an issue or submit a pull request.
@@ -283,33 +326,6 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `make_arbitrary_grad` | no `first` or `last` |
 | `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
 | `Sequence` | way less internal bookkeeping, most variables are missing, reports etc. are not calculated |
-
-### Additional API
-
-This API is where Pulseq-zero comes into play:
-
-In the `mr0_mode` context, all PyPulseq functions are swapped for Pulseq-zero implementations that track all calls so that the sequence can be converted to MR-zero later:
-```python
-with pulseqzero.mr0_mode():
-  seq = build_my_seq()
-```
-
-If you use some functions that are only available in PyPulseq but not Pulseq-zero (PNS computations or similar), you can check if `mr0_mode` is activated:
-```python
-if pulseqzero.is_mr0_mode():
-  pass
-else:
-  seq.calculate_pns()
-```
-
-Finally, the sequence object returned in `mr0_mode` has one method that is not available otherwise and forms the central point of Pulseq-zero:
-```python
-with pulseqzero.mr0_mode():
-  seq = build_my_seq()
-  # This function here
-  mr0_seq = seq.to_mr0()
-  # Now do some simulations with mr0_seq!
-```
 
 
 ## 5. References
