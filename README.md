@@ -258,7 +258,7 @@ The reason for disabling is either that a differentiable re-implementation if ou
 | `make_label` | `None` |
 | `make_extended_trapezoid_area` | **error** |
 | `calc_rf_bandwidth` | returns zeroes as mr0 mode doesn't store pulse shapes |
-| `calc_rf_center` | returns zeroes as mr0 mode doesn't store pulse shapes |
+| `calc_rf_center` | returns (shape_dur / 2, 0) - mr0 mode ignores (assymetric) pulse shapes |
 | `points_to_waveform` | **error** |
 
 ### Altered behaviour
