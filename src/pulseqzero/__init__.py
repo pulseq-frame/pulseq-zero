@@ -1,5 +1,7 @@
 from contextlib import contextmanager
 
+from .math import ceil, floor, round
+
 
 class Impl:
     def __init__(self):
@@ -26,7 +28,11 @@ class Impl:
         self.calc_rf_center = pp.calc_rf_center
         self.make_adc = pp.make_adc
         self.make_adiabatic_pulse = pp.make_adiabatic_pulse
-        self.make_arbitrary_grad = pp.make_arbitrary_grad
+        try:  # Fix for pypulseq 1.4.2 which doesn't re-export this
+            self.make_arbitrary_grad = pp.make_arbitrary_grad
+        except ImportError:
+            from pypulseq.make_arbitrary_grad import make_arbitrary_grad
+            self.make_arbitrary_grad = make_arbitrary_grad
         self.make_arbitrary_rf = pp.make_arbitrary_rf
         self.make_block_pulse = pp.make_block_pulse
         self.sigpy_n_seq = pp.sigpy_n_seq

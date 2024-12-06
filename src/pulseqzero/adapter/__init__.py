@@ -28,7 +28,7 @@ def calc_rf_bandwidth(rf, cutoff=0.5, return_axis=False, return_spectrum=False):
 
 
 def calc_rf_center(rf):
-    return 0, 0
+    return rf.shape_dur / 2, 0
 
 
 def get_supported_labels():

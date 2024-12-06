@@ -225,11 +225,11 @@ def make_sinc_pulse(
         area = BW / slice_thickness * duration
 
         gz = make_trapezoid(
-            "z", max_grad=max_grad, max_slew=max_slew,
-            flat_time=duration, flat_area=area
+            "z", system=system,
+            flat_area=area, flat_time=duration
         )
         gzr = make_trapezoid(
-            "z", max_grad=max_grad, max_slew=max_slew,
+            "z", system=system,
             area=-area * (1 - center_pos) - 0.5 * (gz.area - area)
         )
 

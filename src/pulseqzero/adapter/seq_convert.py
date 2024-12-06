@@ -40,11 +40,10 @@ def convert(pp0) -> mr0.Sequence:
                     grad_z = ev
 
         if rf:
-            assert delay is None and adc is None
-            seq += parse_pulse(rf, grad_x, grad_y, grad_z)
+            assert adc is None
+            seq += parse_pulse(delay, rf, grad_x, grad_y, grad_z)
         elif adc:
-            assert delay is None
-            seq += parse_adc(adc, grad_x, grad_y, grad_z)
+            seq += parse_adc(delay, adc, grad_x, grad_y, grad_z)
         else:
             seq += parse_spoiler(delay, grad_x, grad_y, grad_z)
 
@@ -129,9 +128,9 @@ class TmpAdc:
         return f"Adc(phase={self.phase * 180 / pi}°, total_gradm={self.gradm.sum(0)}, total_time={self.event_time.sum(0)})"
 
 
-def parse_pulse(rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSpoiler]:
+def parse_pulse(delay, rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSpoiler]:
     t = rf.delay + rf.shape_dur / 2
-    duration = calc_duration(rf, grad_x, grad_y, grad_z)
+    duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
 
     gx1 = gx2 = gy1 = gy2 = gz1 = gz2 = 0.0
     if grad_x:
@@ -156,11 +155,12 @@ def parse_spoiler(delay, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler]:
     return (TmpSpoiler(duration, gx, gy, gz), )
 
 
-def parse_adc(adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
-    duration = calc_duration(adc, grad_x, grad_y, grad_z)
+# TODO: why does only adc have typing?
+def parse_adc(delay, adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
+    duration = calc_duration(delay, adc, grad_x, grad_y, grad_z)
     time = torch.cat([
         torch.as_tensor(0.0).view((1, )),
-        adc.delay + torch.arange(adc.num_samples) * adc.dwell,
+        adc.delay + (torch.arange(adc.num_samples) + 0.5) * adc.dwell,
         torch.as_tensor(duration).view((1, ))
     ])
 
@@ -190,7 +190,7 @@ def integrate(grad, t):
     if isinstance(grad, TrapGrad):
         # heaviside could be replaced with error function for differentiability
         def h(x):
-            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5))
+            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype))
 
         # https://www.desmos.com/calculator/0q5co02ecm
 
@@ -221,10 +221,10 @@ def integrate(grad, t):
         # https://www.desmos.com/calculator/j2vopzhb2z
 
         # Start and end time point and amplitude of all line segments
-        t1 = torch.as_tensor(grad.times[:-1])
-        t2 = torch.as_tensor(grad.times[1:])
-        c1 = torch.as_tensor(grad.amplitudes[:-1])
-        c2 = torch.as_tensor(grad.amplitudes[1:])
+        t1 = torch.as_tensor(grad.tt[:-1])
+        t2 = torch.as_tensor(grad.tt[1:])
+        c1 = torch.as_tensor(grad.waveform[:-1])
+        c2 = torch.as_tensor(grad.waveform[1:])
 
         # This is how much of every segment contributes, clamped to [0, width]
         t_rel = torch.clamp(t - t1, 0 * t1, t2 - t1)
