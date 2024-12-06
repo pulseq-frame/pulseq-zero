@@ -21,7 +21,7 @@ class Sequence:
     def duration(self):
         duration = sum(calc_duration(*block) for block in self.blocks)
         num_blocks = len(self.blocks)
-        event_count = len(filter(lambda b: len(b) > 0, self.blocks))
+        event_count = sum(len(b) for b in self.blocks)
         return duration, num_blocks, event_count
 
     def get_definition(self, key):
