@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pulseqzero"
-version = "0.1.3"
+version = "0.1.4"
 description = "Use PyPulseq for MRI sequence definitions in MR-zero"
 readme = "README.md"
 authors = [

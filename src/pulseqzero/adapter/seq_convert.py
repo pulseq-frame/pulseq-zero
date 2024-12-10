@@ -190,7 +190,10 @@ def integrate(grad, t):
     if isinstance(grad, TrapGrad):
         # heaviside could be replaced with error function for differentiability
         def h(x):
-            return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype))
+            try:
+                return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype))
+            except AttributeError:
+                return 0 if x < 0 else 1 if x > 0 else 0.5
 
         # https://www.desmos.com/calculator/0q5co02ecm
 
