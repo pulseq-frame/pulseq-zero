@@ -107,5 +107,6 @@ def mr0_mode():
     finally:
         pp_impl.use_pypulseq()
 
+
 def is_mr0_mode() -> bool:
     return pp_impl.mr0_mode

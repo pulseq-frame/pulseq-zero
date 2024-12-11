@@ -29,6 +29,9 @@ def make_arbitrary_rf(
 
     duration = len(signal) * dwell
 
+    def generate_shape():
+        raise NotImplementedError
+
     rf = Pulse(
         flip_angle,
         duration,
@@ -36,7 +39,8 @@ def make_arbitrary_rf(
         phase_offset,
         delay,
         system.rf_ringdown_time,
-        shim_array
+        shim_array,
+        generate_shape
     )
     ret_val = (rf, )
 
@@ -94,6 +98,14 @@ def make_block_pulse(
     else:
         assert bandwidth is None
 
+    def generate_shape():
+        import numpy as np
+        dur = round(duration / system.rf_raster_time) * system.rf_raster_time
+        amp = flip_angle / (2 * np.pi) / duration
+        t = np.array([0, 0, dur, dur])
+        signal = np.array([0, amp, amp, 0])
+        return t, signal
+
     rf = Pulse(
         flip_angle,
         duration,
@@ -101,7 +113,8 @@ def make_block_pulse(
         phase_offset,
         delay,
         system.rf_ringdown_time,
-        shim_array
+        shim_array,
+        generate_shape
     )
 
     if system.rf_dead_time > rf.delay:
@@ -137,6 +150,9 @@ def make_gauss_pulse(
         system = Opts.default
     delay = max(delay, system.rf_dead_time)
 
+    def generate_shape():
+        raise NotImplementedError
+
     rf = Pulse(
         flip_angle,
         duration,
@@ -144,7 +160,8 @@ def make_gauss_pulse(
         phase_offset,
         delay,
         system.rf_ringdown_time,
-        shim_array
+        shim_array,
+        generate_shape
     )
     ret_val = (rf, )
 
@@ -204,6 +221,17 @@ def make_sinc_pulse(
         system = Opts.default
     delay = max(delay, system.rf_dead_time)
 
+    def generate_shape():
+        import numpy as np
+        bandwidth = time_bw_product / duration
+        t = (np.arange(100) + 0.5) * duration / 100
+        tt = t - duration * center_pos
+        window = 1 - apodization + apodization * np.cos(2 * np.pi * tt / duration)
+        signal = window * np.sinc(bandwidth * tt)
+        flip = 2 * np.pi * duration * np.mean(signal)
+
+        return t, signal * flip_angle / flip
+
     rf = Pulse(
         flip_angle,
         duration,
@@ -211,7 +239,8 @@ def make_sinc_pulse(
         phase_offset,
         delay,
         system.rf_ringdown_time,
-        shim_array
+        shim_array,
+        generate_shape
     )
     ret_val = (rf, )
 
@@ -255,7 +284,9 @@ class Pulse:
     phase_offset: ...
     delay: ...
     ringdown_time: ...  # important for duration
-    shim_array: ... # requres rfshim pulseq in pulseq mode
+    shim_array: ...  # requres rfshim pulseq in pulseq mode
+
+    _generate_shape: ...
 
     @property
     def duration(self):
