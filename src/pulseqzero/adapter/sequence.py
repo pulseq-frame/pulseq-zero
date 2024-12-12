@@ -38,8 +38,8 @@ class Sequence:
         else:
             return ""
 
-    def plot(self, show_blocks=False,
-             time_range=None, time_unit="s", grad_unit="kHz/m"):
+    def plot(self, show_blocks=False, signal=None,
+             time_range=(0, float("inf")), time_unit="s", grad_unit="kHz/m"):
         # NOTE: This plotting function is not compatible with pypulseq!
         assert grad_unit == "kHz/m"
 
@@ -65,21 +65,40 @@ class Sequence:
         print(f"> Event count = {events}")
 
         t = 0
-        grad_x = [[], []]
-        grad_y = [[], []]
-        grad_z = [[], []]
-        rf = [[], []]
+        grad_x = [[], []]  # time, amp
+        grad_y = [[], []]  # time, amp
+        grad_z = [[], []]  # time, amp
+        rf = [[], []]  # time, amp
+        rf_phase = [[], []]  # pulse center, angle
+        adc = [[], [], []]   # time, angle, signal
+        nan = [float("nan")]  # used to split blocks in plotting
+        if signal is not None:
+            signal = signal.flatten()
 
         for block in self.blocks:
+            block_dur = float(calc_duration(*block))
+            if t + block_dur < time_range[0] or time_range[1] < t:
+                t += block_dur
+                continue
+
             for event in block:
                 if isinstance(event, Delay):
                     pass
                 elif isinstance(event, Adc):
-                    pass
+                    adc[0] += (t + event.delay +
+                               np.arange(event.num_samples) * event.dwell
+                               ).tolist() + nan
+                    adc[1] += [np.angle(np.exp(1j * event.phase_offset))] * event.num_samples + nan
+                    if signal is not None:
+                        adc[2] += signal[:event.num_samples].tolist() + nan
+                        signal = signal[event.num_samples:]
+
                 elif isinstance(event, Pulse):
                     time, amp = event._generate_shape()
-                    rf[0] += (t + time).tolist() + [float("nan")]
-                    rf[1] += amp.tolist() + [float("nan")]
+                    rf[0] += (t + time).tolist() + nan
+                    rf[1] += amp.tolist() + nan
+                    rf_phase[0].append(t + event.delay + event.shape_dur / 2)
+                    rf_phase[1].append(np.angle(np.exp(1j * event.phase_offset)))
                 elif isinstance(event, TrapGrad):
                     if event.channel == "x":
                         grad = grad_x
@@ -94,33 +113,51 @@ class Sequence:
 
                     time = (time_factor * np.cumsum([
                         t + event.delay,
-                        event.rise_time, event.flat_time, event.fall_time,
-                        float("nan")
+                        event.rise_time, event.flat_time, event.fall_time
                     ])).tolist()
                     amp = grad_factor * event.amplitude
 
-                    grad[0] += time
-                    grad[1] += [0, amp, amp, 0, float("nan")]
+                    grad[0] += time + nan
+                    grad[1] += [0, amp, amp, 0] + nan
                 elif isinstance(event, FreeGrad):
                     pass
 
-            t += float(calc_duration(*block))
-
-        plt.subplot(312)
-        plt.plot(rf[0], rf[1])
-        plt.grid()
-        if time_range:
-            plt.xlim(time_range)
-        plt.gca().tick_params(labelbottom=False)
-
-        plt.subplot(313, sharex=plt.gca())
+            t += block_dur
+        
+        
+        plt.subplot(411)
         plt.plot(grad_x[0], grad_x[1], label="x")
         plt.plot(grad_y[0], grad_y[1], label="y")
         plt.plot(grad_z[0], grad_z[1], label="z")
         plt.grid()
         plt.legend()
-        if time_range:
-            plt.xlim(time_range)
+        plt.gca().tick_params(labelbottom=False)
+
+        plt.subplot(412, sharex=plt.gca())
+        plt.plot(adc[0], np.zeros(len(adc[0])), "rx")
+        if signal is not None:
+            plt.plot(adc[0], np.abs(adc[2]), label="abs")
+            plt.plot(adc[0], np.real(adc[2]), label="real")
+            plt.plot(adc[0], np.imag(adc[2]), label="imag")
+        plt.grid()
+        plt.legend()
+        plt.gca().tick_params(labelbottom=False)
+
+        plt.subplot(413, sharex=plt.gca())
+        plt.plot(rf[0], rf[1])
+        plt.grid()
+        plt.gca().tick_params(labelbottom=False)
+
+        plt.subplot(414, sharex=plt.gca())
+        plt.plot(rf_phase[0], rf_phase[1], ".", label="pulse")
+        plt.plot(adc[0], adc[1], "rx", label="adc")
+        plt.ylim(-1.1 * np.pi, 1.1 * np.pi)
+        plt.yticks(
+            [-np.pi, -np.pi/2, 0, np.pi/2, np.pi],
+            ["$-180°$", "$-90°$", "$0°$", "$90°$", "$180°$"]
+        )
+        plt.grid()
+        plt.legend()
 
     def remove_duplicates(self, in_place=False):
         if in_place:
