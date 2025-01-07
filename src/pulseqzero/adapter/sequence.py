@@ -38,8 +38,9 @@ class Sequence:
         else:
             return ""
 
-    def plot(self, show_blocks=False, signal=None,
-             time_range=(0, float("inf")), time_unit="s", grad_unit="kHz/m"):
+    def plot(self, signal=None, reduced_plot=False, t=0,
+             time_range=(0, float("inf")), time_unit="s", grad_unit="kHz/m",
+             rf_max=None, adc_max=None):
         # NOTE: This plotting function is not compatible with pypulseq!
         assert grad_unit == "kHz/m"
 
@@ -64,7 +65,6 @@ class Sequence:
         print(f"> Block count = {blocks}")
         print(f"> Event count = {events}")
 
-        t = 0
         grad_x = [[], []]  # time, amp
         grad_y = [[], []]  # time, amp
         grad_z = [[], []]  # time, amp
@@ -85,9 +85,9 @@ class Sequence:
                 if isinstance(event, Delay):
                     pass
                 elif isinstance(event, Adc):
-                    adc[0] += (t + event.delay +
+                    adc[0] += (time_factor * (t + event.delay +
                                np.arange(event.num_samples) * event.dwell
-                               ).tolist() + nan
+                               )).tolist() + nan
                     adc[1] += [np.angle(np.exp(1j * event.phase_offset))] * event.num_samples + nan
                     if signal is not None:
                         adc[2] += signal[:event.num_samples].tolist() + nan
@@ -95,9 +95,9 @@ class Sequence:
 
                 elif isinstance(event, Pulse):
                     time, amp = event._generate_shape()
-                    rf[0] += (t + time).tolist() + nan
+                    rf[0] += (time_factor * (t + time)).tolist() + nan
                     rf[1] += amp.tolist() + nan
-                    rf_phase[0].append(t + event.delay + event.shape_dur / 2)
+                    rf_phase[0].append(time_factor * (t + event.delay + event.shape_dur / 2))
                     rf_phase[1].append(np.angle(np.exp(1j * event.phase_offset)))
                 elif isinstance(event, TrapGrad):
                     if event.channel == "x":
@@ -124,27 +124,49 @@ class Sequence:
 
             t += block_dur
         
+        if rf_max is None:
+            rf_max = 1.05 * float(max(rf[1]))
+        if adc_max is None and signal is not None:
+            adc_max = 1.05 * float(max(np.abs(signal)))
         
-        plt.subplot(411)
+        plt.subplot(211 if reduced_plot else 411)
+        plt.plot(rf[0], rf[1], c="k")
+        plt.ylim(-0.05 * rf_max, 1.05 * rf_max)
+        plt.grid()
+        plt.ylabel("RF [Hz]")
+        plt.gca().tick_params(labelbottom=False)
+
+        if reduced_plot and signal is not None:
+            ticks, _ = plt.yticks()
+            ax = plt.gca().twinx()
+            ax.plot(adc[0], np.abs(adc[2]), label="abs", c="tab:red")
+            ax.set_yticks(ticks * adc_max / rf_max)
+            ax.set_ylim(-0.05 * adc_max, 1.05 * adc_max)
+            ax.grid(False)
+            ax.tick_params("y", colors="tab:red")
+            ax.spines["right"].set_color("tab:red")
+            ax.set_ylabel("Signal [a.u.]", color="tab:red")
+
+        plt.subplot(212 if reduced_plot else 412, sharex=plt.gca())
         plt.plot(grad_x[0], grad_x[1], label="x")
         plt.plot(grad_y[0], grad_y[1], label="y")
         plt.plot(grad_z[0], grad_z[1], label="z")
         plt.grid()
         plt.legend()
-        plt.gca().tick_params(labelbottom=False)
+        plt.ylabel(f"Gradient [{grad_unit}]")
+        if not reduced_plot:
+            plt.gca().tick_params(labelbottom=False)
+        else:
+            plt.xlabel(f"Time [{time_unit}]")
+            return
 
-        plt.subplot(412, sharex=plt.gca())
+        plt.subplot(413, sharex=plt.gca())
         plt.plot(adc[0], np.zeros(len(adc[0])), "rx")
         if signal is not None:
             plt.plot(adc[0], np.abs(adc[2]), label="abs")
             plt.plot(adc[0], np.real(adc[2]), label="real")
             plt.plot(adc[0], np.imag(adc[2]), label="imag")
-        plt.grid()
         plt.legend()
-        plt.gca().tick_params(labelbottom=False)
-
-        plt.subplot(413, sharex=plt.gca())
-        plt.plot(rf[0], rf[1])
         plt.grid()
         plt.gca().tick_params(labelbottom=False)
 
@@ -158,6 +180,7 @@ class Sequence:
         )
         plt.grid()
         plt.legend()
+        plt.xlabel(f"Time [{time_unit}]")
 
     def remove_duplicates(self, in_place=False):
         if in_place:

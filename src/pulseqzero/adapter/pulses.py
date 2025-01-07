@@ -104,7 +104,7 @@ def make_block_pulse(
         amp = flip_angle / (2 * np.pi) / duration
         t = np.array([0, 0, dur, dur])
         signal = np.array([0, amp, amp, 0])
-        return t, signal
+        return t + delay, signal
 
     rf = Pulse(
         flip_angle,
@@ -230,7 +230,7 @@ def make_sinc_pulse(
         signal = window * np.sinc(bandwidth * tt)
         flip = 2 * np.pi * duration * np.mean(signal)
 
-        return t, signal * flip_angle / flip
+        return t + delay, signal * flip_angle / flip
 
     rf = Pulse(
         flip_angle,
