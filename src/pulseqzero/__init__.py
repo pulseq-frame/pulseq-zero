@@ -79,7 +79,7 @@ class Impl:
         self.make_delay = ad.make_delay
         self.make_digital_output_pulse = ad.make_digital_output_pulse
         self.make_extended_trapezoid = ad.make_extended_trapezoid
-        # self.make_extended_trapezoid_area = ad.make_extended_trapezoid_area
+        self.make_extended_trapezoid_area = ad.make_extended_trapezoid_area
         self.make_gauss_pulse = ad.make_gauss_pulse
         self.make_label = ad.make_label
         self.make_sinc_pulse = ad.make_sinc_pulse

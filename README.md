@@ -284,7 +284,7 @@ Functions that behave differently to PyPulseq are listed in the following sectio
 ### Disabled in mr0 mode
 
 These will in mr0 mode either return the specified value or don't exist so using them raises an error.
-The reason for disabling is either that a differentiable re-implementation if out of scope of pulseq-zero (e.g.: pulse optimization) or not sensible (like sequence loding).
+The reason for disabling is either that a differentiable re-implementation is out of scope of pulseq-zero (e.g.: pulse optimization) or not sensible (like sequence loding).
 
 | function | return value |
 | -------- | ------------ |
@@ -325,6 +325,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
 | `make_arbitrary_grad` | no `first` or `last` |
 | `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
+| `make_extended_trapezoid_area` | Implementation copied from pypulseq, not yet differentiable (can't optimize parameters of gradients created with this function) |
 | `Sequence` | way less internal bookkeeping, most variables are missing, reports etc. are not calculated |
 
 

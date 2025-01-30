@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from copy import copy
-import numpy as np
+from copy import copy, deepcopy
+import torch
 from ..adapter import Opts, calc_duration
 from ..math import ceil
 
@@ -22,18 +22,18 @@ def split_gradient(grad, system):
 
     ramp_up = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=np.array([0, grad.amplitude]),
-        times=np.array([0, grad.rise_time])
+        amplitudes=torch.tensor([0, grad.amplitude]),
+        times=torch.tensor([0, grad.rise_time])
     )
     flat_top = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=np.array([grad.amplitude, grad.amplitude]),
-        times=np.array([grad.rise_time, grad.rise_time + grad.flat_time])
+        amplitudes=torch.tensor([grad.amplitude, grad.amplitude]),
+        times=torch.tensor([grad.rise_time, grad.rise_time + grad.flat_time])
     )
     ramp_down = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=np.array([grad.amplitude, 0]),
-        times=np.array([grad.rise_time + grad.flat_time, total_duration])
+        amplitudes=torch.tensor([grad.amplitude, 0]),
+        times=torch.tensor([grad.rise_time + grad.flat_time, total_duration])
     )
 
     return ramp_up, flat_top, ramp_down
@@ -184,7 +184,7 @@ def make_arbitrary_grad(
     if system is None:
         system = Opts.default
 
-    tt = (np.arange(len(waveform)) + 0.5) * system.grad_raster_time
+    tt = (torch.arange(len(waveform)) + 0.5) * system.grad_raster_time
 
     return FreeGrad(
         channel,
@@ -217,13 +217,13 @@ class FreeGrad:
 
 def make_extended_trapezoid(
     channel,
-    amplitudes=np.zeros(1),
+    amplitudes=torch.zeros(1),
     convert_to_arbitrary=False,
     max_grad=None,
     max_slew=None,
     skip_check=False,
     system=None,
-    times=np.zeros(1),
+    times=torch.zeros(1),
 ):
     return FreeGrad(
         channel,
@@ -232,3 +232,43 @@ def make_extended_trapezoid(
         times - times[0],
         times[-1]
     )
+
+
+def add_gradients(
+        grads,
+        max_grad=None,
+        max_slew=None,
+        system=None,
+):
+    if len(grads) == 0:
+        raise ValueError("No gradients specified")
+    if len(grads) == 1:
+        return deepcopy(grads[0])
+    
+    channel = grads[0].channel
+    if any(g.channel != channel for g in grads):
+        raise ValueError("Cannot add gradients on different channels")
+    
+    if all((isinstance(g, TrapGrad) and
+            g.rise_time == grads[0].rise_time and
+            g.flat_time == grads[0].flat_time and
+            g.fall_time == grads[0].fall_time and
+            g.delay == grads[0].delay) for g in grads):
+        return make_trapezoid(
+            channel=channel,
+            amplitude=sum(g.amplitude for g in grads),
+            rise_time=grads[0].rise_time,
+            flat_time=grads[0].flat_time,
+            fall_time=grads[0].fall_time,
+            delay=grads[0].delay,
+            max_grad=max_grad,
+            max_slew=max_slew,
+            system=system,
+        )
+
+    if system is None:
+        system = Opts.default
+    if max_grad is None:
+        max_grad = system.max_grad
+    if max_slew is None:
+        max_slew = system.max_slew
