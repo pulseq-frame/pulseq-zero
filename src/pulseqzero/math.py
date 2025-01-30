@@ -44,7 +44,7 @@ class Round(torch.autograd.Function):
         return grad_output
 
 
-def ceil(x: torch.Tensor | float) -> torch.Tensor:
+def ceil(x: torch.Tensor) -> torch.Tensor:
     """Differentiable version of torch.ceil.
     For gradient calculation, this mimicks the identity function."""
     try:
