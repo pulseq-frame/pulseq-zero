@@ -215,7 +215,7 @@ class FreeGrad:
         ).sum()
 
 
-def make_extended_trapezoid(
+def  make_extended_trapezoid(
     channel,
     amplitudes=torch.zeros(1),
     convert_to_arbitrary=False,
@@ -272,3 +272,207 @@ def add_gradients(
         max_grad = system.max_grad
     if max_slew is None:
         max_slew = system.max_slew
+    
+
+    # !!! Non-differentiable pulseq 1.4.2 code !!!
+    # - start with a diff check to raise an error
+    def requires_grad(x):
+        return torch.as_tensor(x).requires_grad
+    
+    def check_req_grad(grad):
+        if isinstance(grad, TrapGrad):
+            for attr in ["amplitude", "delay", "rise_time", "flat_time", "fall_time"]:
+                if requires_grad(getattr(grad, attr)):
+                    return attr
+        elif isinstance(grad, FreeGrad):
+            for attr in ["waveform", "delay", "tt"]:
+                if requires_grad(getattr(grad, attr)):
+                    return attr
+        else:
+            raise TypeError(f"Expected TrapGrad or FreeGrad, got {type(grad)}")
+
+    for grad in grads:
+        attr = check_req_grad(grad)
+        if attr is not None:
+            raise ValueError(f"add_gradients() is not yet differentiable, but {attr} of {grad} has requires_grad=True. File an issue if you need this functionality.")
+    
+    def points_to_waveform(amplitudes, grad_raster_time, times):
+        amplitudes = np.asarray(amplitudes)
+        times = np.asarray(times)
+
+        if amplitudes.size == 0:
+            return np.array([0])
+
+        grd = (
+            np.arange(
+                start=round(np.min(times) / grad_raster_time),
+                stop=round(np.max(times) / grad_raster_time),
+            )
+            * grad_raster_time
+        )
+        waveform = np.interp(x=grd + grad_raster_time / 2, xp=times, fp=amplitudes)
+
+        return waveform
+
+    # - copy of pulseq code
+    import numpy as np
+    eps = 1e-9
+    def cumsum(*args):
+        return np.cumsum(args).tolist()
+
+    # Find out the general delay of all gradients and other statistics
+    delays, firsts, lasts, durs, is_trap, is_arb = [], [], [], [], [], []
+    for ii in range(len(grads)):
+        if grads[ii].channel != channel:
+            raise ValueError("Cannot add gradients on different channels.")
+
+        delays.append(grads[ii].delay)
+        firsts.append(grads[ii].first)
+        lasts.append(grads[ii].last)
+        durs.append(calc_duration(grads[ii]))
+        is_trap.append(grads[ii].type == "trap")
+        if is_trap[-1]:
+            is_arb.append(False)
+        else:
+            tt_rast = grads[ii].tt / system.grad_raster_time - 0.5
+            is_arb.append(np.all(np.abs(tt_rast - np.arange(len(tt_rast)))) < eps)
+
+    # Check if we only have arbitrary grads on irregular time samplings, optionally mixed with trapezoids
+    if np.all(np.logical_or(is_trap, np.logical_not(is_arb))):
+        # Keep shapes still rather simple
+        times = []
+        for ii in range(len(grads)):
+            g = grads[ii]
+            if g.type == "trap":
+                times.extend(
+                    cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                )
+            else:
+                times.extend(g.delay + g.tt)
+
+        times = np.unique(times)
+        dt = times[1:] - times[:-1]
+        ieps = np.flatnonzero(dt < eps)
+        if np.any(ieps):
+            dtx = np.array([times[0], *dt])
+            dtx[ieps] = (
+                dtx[ieps] + dtx[ieps + 1]
+            )  # Assumes that no more than two too similar values can occur
+            dtx = np.delete(dtx, ieps + 1)
+            times = np.cumsum(dtx)
+
+        amplitudes = np.zeros_like(times)
+        for ii in range(len(grads)):
+            g = grads[ii]
+            if g.type == "trap":
+                if g.flat_time > 0:  # Trapezoid or triangle
+                    tt = list(cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time))
+                    waveform = [0, g.amplitude, g.amplitude, 0]
+                else:
+                    tt = list(cumsum(g.delay, g.rise_time, g.fall_time))
+                    waveform = [0, g.amplitude, 0]
+            else:
+                tt = g.delay + g.tt
+                waveform = g.waveform
+
+            # Fix rounding for the first and last time points
+            i_min = np.argmin(np.abs(tt[0] - times))
+            t_min = (np.abs(tt[0] - times))[i_min]
+            if t_min < eps:
+                tt[0] = times[i_min]
+            i_min = np.argmin(np.abs(tt[-1] - times))
+            t_min = (np.abs(tt[-1] - times))[i_min]
+            if t_min < eps:
+                tt[-1] = times[i_min]
+
+            if abs(waveform[0]) > eps and tt[0] > eps:
+                tt[0] += eps
+
+            amplitudes += np.interp(xp=tt, fp=waveform, x=times, left=0, right=0)
+
+        grad = make_extended_trapezoid(
+            channel=channel, amplitudes=amplitudes, times=times, system=system
+        )
+        return grad
+    
+    # Convert to numpy.ndarray for fancy-indexing later on
+    firsts, lasts = np.array(firsts), np.array(lasts)
+    common_delay = np.min(delays)
+    durs = np.array(durs)
+
+    # Convert everything to a regularly-sampled waveform
+    waveforms = dict()
+    max_length = 0
+    for ii in range(len(grads)):
+        g = grads[ii]
+        if g.type == "grad":
+            if is_arb[ii]:
+                waveforms[ii] = g.waveform
+            else:
+                waveforms[ii] = points_to_waveform(
+                    amplitudes=g.waveform,
+                    times=g.tt,
+                    grad_raster_time=system.grad_raster_time,
+                )
+        elif g.type == "trap":
+            if g.flat_time > 0:  # Triangle or trapezoid
+                times = np.array(
+                    [
+                        g.delay - common_delay,
+                        g.delay - common_delay + g.rise_time,
+                        g.delay - common_delay + g.rise_time + g.flat_time,
+                        g.delay
+                        - common_delay
+                        + g.rise_time
+                        + g.flat_time
+                        + g.fall_time,
+                    ]
+                )
+                amplitudes = np.array([0, g.amplitude, g.amplitude, 0])
+            else:
+                times = np.array(
+                    [
+                        g.delay - common_delay,
+                        g.delay - common_delay + g.rise_time,
+                        g.delay - common_delay + g.rise_time + g.fall_time,
+                    ]
+                )
+                amplitudes = np.array([0, g.amplitude, 0])
+            waveforms[ii] = points_to_waveform(
+                amplitudes=amplitudes,
+                times=times,
+                grad_raster_time=system.grad_raster_time,
+            )
+        else:
+            raise ValueError("Unknown gradient type")
+
+        if g.delay - common_delay > 0:
+            # Stop for numpy.arange is not g.delay - common_delay - system.grad_raster_time like in Matlab
+            # so as to include the endpoint
+            t_delay = np.arange(0, g.delay - common_delay, step=system.grad_raster_time)
+            waveforms[ii] = np.concatenate(([t_delay], waveforms[ii]))
+
+        num_points = len(waveforms[ii])
+        max_length = max(num_points, max_length)
+
+    w = np.zeros(max_length)
+    for ii in range(len(grads)):
+        wt = np.zeros(max_length)
+        wt[0 : len(waveforms[ii])] = waveforms[ii]
+        w += wt
+
+    grad = make_arbitrary_grad(
+        channel=channel,
+        waveform=w,
+        system=system,
+        max_slew=max_slew,
+        max_grad=max_grad,
+        delay=common_delay,
+    )
+    # Fix the first and the last values
+    # First is defined by the sum of firsts with the minimal delay (common_delay)
+    # Last is defined by the sum of lasts with the maximum duration (total_duration == durs.max())
+    grad.first = np.sum(firsts[np.array(delays) == common_delay])
+    grad.last = np.sum(lasts[durs == durs.max()])
+
+    return grad

@@ -243,7 +243,7 @@ Functions that behave differently to PyPulseq are listed in the following sectio
   - [ ] `waveforms_and_times`
   - [ ] `waveforms_export`
   - [x] `write`
-- [ ] `add_gradients`
+- [x] `add_gradients`
 - [ ] `align`
 - [x] `calc_duration`
 - [ ] `calc_ramp`
@@ -326,6 +326,7 @@ Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing
 | `make_arbitrary_grad` | no `first` or `last` |
 | `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
 | `make_extended_trapezoid_area` | Implementation copied from pypulseq, not yet differentiable (can't optimize parameters of gradients created with this function) |
+| `add_gradients` | Implementation copied from pypulseq, not yet differentiable (can't optimize parameters of gradients created with this function) |
 | `Sequence` | way less internal bookkeeping, most variables are missing, reports etc. are not calculated |
 
 
