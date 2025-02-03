@@ -62,7 +62,7 @@ class Impl:
         self.mr0_mode = True
         self.calc_SAR = ad.calc_SAR
         self.Sequence = ad.Sequence
-        # self.add_gradients = ad.add_gradients
+        self.add_gradients = ad.add_gradients
         # self.align = ad.align
         self.calc_duration = ad.calc_duration
         # self.calc_ramp = ad.calc_ramp
