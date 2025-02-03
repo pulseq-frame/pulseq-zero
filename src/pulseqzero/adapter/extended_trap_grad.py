@@ -171,11 +171,16 @@ def make_extended_trapezoid_area(
     grad_amp = solution[3]
 
     # Create extended trapezoid
+    def cumsum(*args):
+        return np.cumsum(args).tolist()
+
     if flat_time > 0:
-        times = np.cumsum(0, time_ramp_up, flat_time, time_ramp_down)
+        times = cumsum(0, time_ramp_up, flat_time, time_ramp_down)
         amplitudes = np.array([grad_start, grad_amp, grad_amp, grad_end])
     else:
-        times = np.cumsum(0, time_ramp_up, time_ramp_down)
+        print(time_ramp_up)
+        print(time_ramp_down)
+        times = cumsum(0, time_ramp_up, time_ramp_down)
         amplitudes = np.array([grad_start, grad_amp, grad_end])
 
     grad = make_extended_trapezoid(

@@ -171,6 +171,14 @@ class TrapGrad:
     @property
     def duration(self):
         return self.delay + self.rise_time + self.flat_time + self.fall_time
+    
+    @property
+    def first(self):
+        return 0.0
+    
+    @property
+    def last(self):
+        return 0.0
 
 
 def make_arbitrary_grad(
@@ -213,6 +221,14 @@ class FreeGrad:
             (self.tt[1:] - self.tt[:-1]) *
             (self.waveform[1:] + self.waveform[:-1])
         ).sum()
+    
+    @property
+    def first(self):
+        return self.waveform[0]
+    
+    @property
+    def last(self):
+        return self.waveform[-1]
 
 
 def  make_extended_trapezoid(
@@ -330,7 +346,7 @@ def add_gradients(
         firsts.append(grads[ii].first)
         lasts.append(grads[ii].last)
         durs.append(calc_duration(grads[ii]))
-        is_trap.append(grads[ii].type == "trap")
+        is_trap.append(isinstance(grads[ii], TrapGrad))
         if is_trap[-1]:
             is_arb.append(False)
         else:
@@ -343,7 +359,7 @@ def add_gradients(
         times = []
         for ii in range(len(grads)):
             g = grads[ii]
-            if g.type == "trap":
+            if isinstance(g, TrapGrad):
                 times.extend(
                     cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
                 )
@@ -364,7 +380,7 @@ def add_gradients(
         amplitudes = np.zeros_like(times)
         for ii in range(len(grads)):
             g = grads[ii]
-            if g.type == "trap":
+            if isinstance(g, TrapGrad):
                 if g.flat_time > 0:  # Trapezoid or triangle
                     tt = list(cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time))
                     waveform = [0, g.amplitude, g.amplitude, 0]
@@ -405,7 +421,7 @@ def add_gradients(
     max_length = 0
     for ii in range(len(grads)):
         g = grads[ii]
-        if g.type == "grad":
+        if isinstance(g, FreeGrad):
             if is_arb[ii]:
                 waveforms[ii] = g.waveform
             else:
@@ -414,7 +430,7 @@ def add_gradients(
                     times=g.tt,
                     grad_raster_time=system.grad_raster_time,
                 )
-        elif g.type == "trap":
+        elif isinstance(g, TrapGrad):
             if g.flat_time > 0:  # Triangle or trapezoid
                 times = np.array(
                     [
