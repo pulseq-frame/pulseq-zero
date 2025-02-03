@@ -18,6 +18,17 @@ def make_extended_trapezoid_area(
     max_grad = system.max_grad * 0.99
     raster_time = system.grad_raster_time
 
+    
+    def requires_grad(x):
+        return torch.as_tensor(x).requires_grad
+    
+    if requires_grad(area):
+        raise ValueError(f"NOT YET DIFFERENTIABLE: make_extended_trapezoid_area() area parameter has requires_grads=True. File an issue if you need this functionality.")
+    if requires_grad(grad_start):
+        raise ValueError(f"NOT YET DIFFERENTIABLE: make_extended_trapezoid_area() grad_start parameter has requires_grads=True. File an issue if you need this functionality.")
+    if requires_grad(grad_end):
+        raise ValueError(f"NOT YET DIFFERENTIABLE: make_extended_trapezoid_area() grad_end parameter has requires_grads=True. File an issue if you need this functionality.")
+
     def _to_raster(time: float) -> float:
         return np.ceil(time / raster_time) * raster_time
 
