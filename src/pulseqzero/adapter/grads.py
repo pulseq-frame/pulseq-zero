@@ -20,20 +20,23 @@ def split_gradient(grad, system):
         system = Opts.default
     total_duration = calc_duration(grad)
 
+    def join(*args):
+        return torch.stack([torch.as_tensor(x) for x in args])
+
     ramp_up = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=torch.tensor([0, grad.amplitude]),
-        times=torch.tensor([0, grad.rise_time])
+        amplitudes=join(0, grad.amplitude),
+        times=join(0, grad.rise_time)
     )
     flat_top = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=torch.tensor([grad.amplitude, grad.amplitude]),
-        times=torch.tensor([grad.rise_time, grad.rise_time + grad.flat_time])
+        amplitudes=join(grad.amplitude, grad.amplitude),
+        times=join(grad.rise_time, grad.rise_time + grad.flat_time)
     )
     ramp_down = make_extended_trapezoid(
         channel=grad.channel,
-        amplitudes=torch.tensor([grad.amplitude, 0]),
-        times=torch.tensor([grad.rise_time + grad.flat_time, total_duration])
+        amplitudes=join(grad.amplitude, 0),
+        times=join(grad.rise_time + grad.flat_time, total_duration)
     )
 
     return ramp_up, flat_top, ramp_down

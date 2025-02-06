@@ -109,7 +109,7 @@ The sequence definition can now be used in many ways!
   # Data loading and other imports
   
   with pulseqzero.mr0_mode():
-    seq = my_gre_seq().to_mr0()
+    seq = my_gre_seq(14e-3, 5e-3).to_mr0()
 
   graph = mr0.compute_graph(seq, sim_data)
   signal = mr0.execute_graph(graph, seq, sim_data)
