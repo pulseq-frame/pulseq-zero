@@ -191,18 +191,29 @@ def make_arbitrary_grad(
     max_grad=None,
     max_slew=None,
     system=None,
+    first=None,
+    last=None
 ):
     if system is None:
         system = Opts.default
 
     tt = (torch.arange(len(waveform)) + 0.5) * system.grad_raster_time
 
+    if first is None:
+        first = (3 * waveform[0] - waveform[1]) * 0.5  # linear extrapolation
+
+    if last is None:
+        last = (3 * waveform[-1] - waveform[-2]) * 0.5  # linear extrapolation
+
+
     return FreeGrad(
         channel,
         waveform,
         delay,
         tt,
-        len(waveform) * system.grad_raster_time
+        len(waveform) * system.grad_raster_time,
+        first, 
+        last
     )
 
 
@@ -213,6 +224,8 @@ class FreeGrad:
     delay: ...
     tt: ...
     shape_dur: ...
+    first_waveform: ...
+    last_waveform: ...
 
     @property
     def duration(self):
@@ -227,11 +240,11 @@ class FreeGrad:
     
     @property
     def first(self):
-        return self.waveform[0]
+        return self.first_waveform 
     
     @property
     def last(self):
-        return self.waveform[-1]
+        return self.last_waveform 
 
 
 def  make_extended_trapezoid(
@@ -249,7 +262,9 @@ def  make_extended_trapezoid(
         amplitudes,
         times[0],
         times - times[0],
-        times[-1]
+        times[-1], 
+        amplitudes[0],
+        amplitudes[-1]
     )
 
 
