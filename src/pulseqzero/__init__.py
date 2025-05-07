@@ -35,9 +35,11 @@ class Impl:
             self.make_arbitrary_grad = make_arbitrary_grad
         self.make_arbitrary_rf = pp.make_arbitrary_rf
         self.make_block_pulse = pp.make_block_pulse
-        self.sigpy_n_seq = pp.sigpy_n_seq
-        self.make_slr = pp.make_slr
-        self.make_sms = pp.make_sms
+        # These were exported by pypulseq 1.4.2 but not by 1.4.2post1 anymore.
+        # Since pulseq-zero has no equivalent anyways, we remove the imports.
+        # self.sigpy_n_seq = pp.sigpy_n_seq
+        # self.make_slr = pp.make_slr
+        # self.make_sms = pp.make_sms
         self.make_delay = pp.make_delay
         self.make_digital_output_pulse = pp.make_digital_output_pulse
         self.make_extended_trapezoid = pp.make_extended_trapezoid
