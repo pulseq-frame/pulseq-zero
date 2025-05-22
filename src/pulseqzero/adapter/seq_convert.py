@@ -6,6 +6,13 @@ from ..adapter.adc import Adc
 from ..adapter.delay import Delay
 from ..adapter.grads import TrapGrad, FreeGrad
 
+def convert_tensors_to_float32(obj):
+    if hasattr(obj, '__dataclass_fields__'):
+        for field_name in obj.__dataclass_fields__:
+            value = getattr(obj, field_name)
+            if isinstance(value, torch.Tensor) and value.dtype == torch.float64:
+                setattr(obj, field_name, value.to(dtype=torch.float32))
+    return obj
 
 def convert(pp0) -> mr0.Sequence:
     seq = []
@@ -18,6 +25,7 @@ def convert(pp0) -> mr0.Sequence:
         grad_y = None
         grad_z = None
         for ev in block:
+            ev = convert_tensors_to_float32(ev)
             if isinstance(ev, Delay):
                 assert delay is None
                 delay = ev
