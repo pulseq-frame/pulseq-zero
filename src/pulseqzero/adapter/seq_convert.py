@@ -223,9 +223,10 @@ def integrate(grad, t):
         # calculate, how much of every segment of the gradient contributes
         # https://www.desmos.com/calculator/j2vopzhb2z
 
+        d = grad.delay
         # Start and end time point and amplitude of all line segments
-        t1 = torch.as_tensor(grad.tt[:-1])
-        t2 = torch.as_tensor(grad.tt[1:])
+        t1 = d + torch.as_tensor(grad.tt[:-1])
+        t2 = d + torch.as_tensor(grad.tt[1:])
         c1 = torch.as_tensor(grad.waveform[:-1])
         c2 = torch.as_tensor(grad.waveform[1:])
 
