@@ -52,6 +52,12 @@ class Impl:
                     return super(WrappedSequence, self).add_block(*a, **k)
                 return inner(*args, **kwargs)
             
+            def set_definition(self, *args, **kwargs):
+                @torch_to_numpy
+                def inner(*a, **k):
+                    return super(WrappedSequence, self).set_definition(*a, **k)
+                return inner(*args, **kwargs)
+            
         self.Sequence = WrappedSequence
         
         self.add_gradients = torch_to_numpy(pp.add_gradients)
