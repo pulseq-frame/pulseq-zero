@@ -75,6 +75,7 @@ def convert(pp0) -> mr0.Sequence:
         rep_out = seq.new_rep(event_count)
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
+        rep_out.pulse.usage = rep_in[0].use
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
         if rep_out.pulse.angle > 100 * torch.pi / 180:
@@ -102,14 +103,15 @@ def convert(pp0) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, shim_array) -> None:
+    def __init__(self, angle, phase, shim_array, use: mr0.PulseUsage) -> None:
         self.angle = angle
         self.phase = phase
         self.shim_array = shim_array
+        self.use = use
 
     def __repr__(self) -> str:
         from math import pi
-        return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°, shim_array={self.shim_array})"
+        return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°, shim_array={self.shim_array}, use={self.use})"
 
 
 class TmpSpoiler:
@@ -147,10 +149,18 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse
         gy1, gy2 = split_gradm(grad_y, t)
     if grad_z:
         gz1, gz2 = split_gradm(grad_z, t)
+    
+    # There is also 'inversion' and the user can possible set any other string
+    if rf.use == 'excitation':
+        use = mr0.PulseUsage.EXCIT
+    elif rf.use == 'refocusing':
+        use = mr0.PulseUsage.REFOC
+    else:
+        use = mr0.PulseUsage.UNDEF
 
     return (
         TmpSpoiler(t, gx1, gy1, gz1),
-        TmpPulse(rf.flip_angle, rf.phase_offset, rf.shim_array),
+        TmpPulse(rf.flip_angle, rf.phase_offset, rf.shim_array, use),
         TmpSpoiler(duration - t, gx2, gy2, gz2)
     )
 

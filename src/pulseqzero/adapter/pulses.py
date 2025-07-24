@@ -19,7 +19,7 @@ def make_arbitrary_rf(
     system=None,
     time_bw_product=0,
     shim_array=None,
-    use=str(),
+    use="",
 ):
     if system is None:
         system = Opts.default
@@ -40,7 +40,8 @@ def make_arbitrary_rf(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
     ret_val = (rf, )
 
@@ -114,7 +115,8 @@ def make_block_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
 
     if system.rf_dead_time > rf.delay:
@@ -161,7 +163,8 @@ def make_gauss_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
     ret_val = (rf, )
 
@@ -240,7 +243,8 @@ def make_sinc_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
     ret_val = (rf, )
 
@@ -287,6 +291,8 @@ class Pulse:
     shim_array: ...  # requres rfshim pulseq in pulseq mode
 
     _generate_shape: ...
+
+    use: str
 
     @property
     def duration(self):
