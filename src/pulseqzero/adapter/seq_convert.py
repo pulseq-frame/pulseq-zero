@@ -117,10 +117,10 @@ class TmpPulse:
 class TmpSpoiler:
     def __init__(self, duration, gx, gy, gz) -> None:
         self.duration = torch.as_tensor(duration)
-        self.gradm = torch.stack([
-            torch.as_tensor(gx),
-            torch.as_tensor(gy),
-            torch.as_tensor(gz)
+        self.gradm = torch.cat([
+            torch.as_tensor(gx).view(1),
+            torch.as_tensor(gy).view(1),
+            torch.as_tensor(gz).view(1)
         ])
 
     def __repr__(self) -> str:
