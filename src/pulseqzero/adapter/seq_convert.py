@@ -6,6 +6,13 @@ from ..adapter.adc import Adc
 from ..adapter.delay import Delay
 from ..adapter.grads import TrapGrad, FreeGrad
 
+def convert_tensors_to_float32(obj):
+    if hasattr(obj, '__dataclass_fields__'):
+        for field_name in obj.__dataclass_fields__:
+            value = getattr(obj, field_name)
+            if isinstance(value, torch.Tensor) and value.dtype == torch.float64:
+                setattr(obj, field_name, value.to(dtype=torch.float32))
+    return obj
 
 def convert(pp0) -> mr0.Sequence:
     seq = []
@@ -18,6 +25,7 @@ def convert(pp0) -> mr0.Sequence:
         grad_y = None
         grad_z = None
         for ev in block:
+            ev = convert_tensors_to_float32(ev)
             if isinstance(ev, Delay):
                 assert delay is None
                 delay = ev
@@ -223,9 +231,10 @@ def integrate(grad, t):
         # calculate, how much of every segment of the gradient contributes
         # https://www.desmos.com/calculator/j2vopzhb2z
 
+        d = grad.delay
         # Start and end time point and amplitude of all line segments
-        t1 = torch.as_tensor(grad.tt[:-1])
-        t2 = torch.as_tensor(grad.tt[1:])
+        t1 = d + torch.as_tensor(grad.tt[:-1])
+        t2 = d + torch.as_tensor(grad.tt[1:])
         c1 = torch.as_tensor(grad.waveform[:-1])
         c2 = torch.as_tensor(grad.waveform[1:])
 

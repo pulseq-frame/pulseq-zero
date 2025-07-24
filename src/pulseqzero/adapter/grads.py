@@ -191,18 +191,29 @@ def make_arbitrary_grad(
     max_grad=None,
     max_slew=None,
     system=None,
+    first=None,
+    last=None
 ):
     if system is None:
         system = Opts.default
 
     tt = (torch.arange(len(waveform)) + 0.5) * system.grad_raster_time
 
+    if first is None:
+        first = (3 * waveform[0] - waveform[1]) * 0.5  # linear extrapolation
+
+    if last is None:
+        last = (3 * waveform[-1] - waveform[-2]) * 0.5  # linear extrapolation
+
+
     return FreeGrad(
         channel,
         waveform,
         delay,
         tt,
-        len(waveform) * system.grad_raster_time
+        len(waveform) * system.grad_raster_time,
+        first, 
+        last
     )
 
 
@@ -213,6 +224,8 @@ class FreeGrad:
     delay: ...
     tt: ...
     shape_dur: ...
+    first_waveform: ...
+    last_waveform: ...
 
     @property
     def duration(self):
@@ -227,11 +240,11 @@ class FreeGrad:
     
     @property
     def first(self):
-        return self.waveform[0]
+        return self.first_waveform 
     
     @property
     def last(self):
-        return self.waveform[-1]
+        return self.last_waveform 
 
 
 def  make_extended_trapezoid(
@@ -249,7 +262,9 @@ def  make_extended_trapezoid(
         amplitudes,
         times[0],
         times - times[0],
-        times[-1]
+        times[-1], 
+        amplitudes[0],
+        amplitudes[-1]
     )
 
 
@@ -263,7 +278,7 @@ def add_gradients(
         raise ValueError("No gradients specified")
     if len(grads) == 1:
         return deepcopy(grads[0])
-    
+
     channel = grads[0].channel
     if any(g.channel != channel for g in grads):
         raise ValueError("Cannot add gradients on different channels")
@@ -314,30 +329,51 @@ def add_gradients(
         attr = check_req_grad(grad)
         if attr is not None:
             raise ValueError(f"add_gradients() is not yet differentiable, but {attr} of {grad} has requires_grad=True. File an issue if you need this functionality.")
-    
+            
     def points_to_waveform(amplitudes, grad_raster_time, times):
-        amplitudes = np.asarray(amplitudes)
-        times = np.asarray(times)
+        amplitudes = torch.as_tensor(amplitudes, dtype=torch.float64)
+        times = torch.as_tensor(times, dtype=torch.float64)
 
-        if amplitudes.size == 0:
-            return np.array([0])
+        if amplitudes.numel() == 0:
+            return torch.tensor([0.0], dtype=torch.float64)
 
-        grd = (
-            np.arange(
-                start=round(np.min(times) / grad_raster_time),
-                stop=round(np.max(times) / grad_raster_time),
-            )
-            * grad_raster_time
-        )
-        waveform = np.interp(x=grd + grad_raster_time / 2, xp=times, fp=amplitudes)
+        start_val = round((torch.min(times) / grad_raster_time).item())
+        stop_val = round((torch.max(times) / grad_raster_time).item())
+        grd = torch.arange(start_val, stop_val, dtype=torch.float64) * grad_raster_time
+
+        # PyTorch equivalent of np.interp
+        x_vals = grd + grad_raster_time / 2
+        waveform = torch.zeros_like(x_vals)
+        
+        for i, x in enumerate(x_vals):
+            # Find the interpolation indices
+            idx = torch.searchsorted(times, x, right=False)
+            if len(times) == 0:
+                waveform[i] = 0.0
+            elif idx == 0:
+                if x <= times[0]:
+                    waveform[i] = amplitudes[0]
+                else:
+                    waveform[i] = amplitudes[0]
+            elif idx >= len(times):
+                waveform[i] = amplitudes[-1]
+            else:
+                # Linear interpolation
+                t0, t1 = times[idx-1], times[idx]
+                a0, a1 = amplitudes[idx-1], amplitudes[idx]
+                if t1 != t0:
+                    alpha = (x - t0) / (t1 - t0)
+                    waveform[i] = a0 + alpha * (a1 - a0)
+                else:
+                    waveform[i] = a0
 
         return waveform
 
     # - copy of pulseq code
     import numpy as np
     eps = 1e-9
-    def cumsum(*args):
-        return np.cumsum(args).tolist()
+    def cumsum(args):
+        return torch.cumsum(args)
 
     # Find out the general delay of all gradients and other statistics
     delays, firsts, lasts, durs, is_trap, is_arb = [], [], [], [], [], []
@@ -354,10 +390,12 @@ def add_gradients(
             is_arb.append(False)
         else:
             tt_rast = grads[ii].tt / system.grad_raster_time - 0.5
-            is_arb.append(np.all(np.abs(tt_rast - np.arange(len(tt_rast)))) < eps)
+            is_arb.append(torch.all(torch.abs(tt_rast - torch.arange(len(tt_rast)))) < eps)
+    is_arb = torch.as_tensor(is_arb)
+    is_trap = torch.as_tensor(is_trap)
 
     # Check if we only have arbitrary grads on irregular time samplings, optionally mixed with trapezoids
-    if np.all(np.logical_or(is_trap, np.logical_not(is_arb))):
+    if torch.all(torch.logical_or(is_trap, torch.logical_not(is_arb))):
         # Keep shapes still rather simple
         times = []
         for ii in range(len(grads)):
@@ -369,55 +407,76 @@ def add_gradients(
             else:
                 times.extend(g.delay + g.tt)
 
-        times = np.unique(times)
+        times = torch.unique(torch.tensor(times))
         dt = times[1:] - times[:-1]
-        ieps = np.flatnonzero(dt < eps)
-        if np.any(ieps):
-            dtx = np.array([times[0], *dt])
+        ieps = torch.nonzero(dt < eps, as_tuple=False).flatten()
+        if torch.any(ieps):
+            dtx = torch.tensor([times[0], *dt])
             dtx[ieps] = (
                 dtx[ieps] + dtx[ieps + 1]
             )  # Assumes that no more than two too similar values can occur
-            dtx = np.delete(dtx, ieps + 1)
-            times = np.cumsum(dtx)
+            dtx = torch.delete(dtx, ieps + 1)
+            times = torch.cumsum(dtx)
 
-        amplitudes = np.zeros_like(times)
+        amplitudes = torch.zeros_like(times)
         for ii in range(len(grads)):
             g = grads[ii]
             if isinstance(g, TrapGrad):
                 if g.flat_time > 0:  # Trapezoid or triangle
-                    tt = list(cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time))
-                    waveform = [0, g.amplitude, g.amplitude, 0]
+                    tt = cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                    waveform = torch.tensor([0, g.amplitude, g.amplitude, 0], dtype=torch.float64)
                 else:
-                    tt = list(cumsum(g.delay, g.rise_time, g.fall_time))
-                    waveform = [0, g.amplitude, 0]
+                    tt = cumsum(g.delay, g.rise_time, g.fall_time)
+                    waveform = torch.tensor([0, g.amplitude, 0], dtype=torch.float64)
             else:
                 tt = g.delay + g.tt
                 waveform = g.waveform
 
             # Fix rounding for the first and last time points
-            i_min = np.argmin(np.abs(tt[0] - times))
-            t_min = (np.abs(tt[0] - times))[i_min]
+            i_min = torch.argmin(torch.abs(tt[0] - times))
+            t_min = torch.abs(tt[0] - times)[i_min]
             if t_min < eps:
                 tt[0] = times[i_min]
-            i_min = np.argmin(np.abs(tt[-1] - times))
-            t_min = (np.abs(tt[-1] - times))[i_min]
+            i_min = torch.argmin(torch.abs(tt[-1] - times))
+            t_min = torch.abs(tt[-1] - times)[i_min]
             if t_min < eps:
                 tt[-1] = times[i_min]
 
             if abs(waveform[0]) > eps and tt[0] > eps:
                 tt[0] += eps
 
-            amplitudes += np.interp(xp=tt, fp=waveform, x=times, left=0, right=0)
+            # PyTorch equivalent of np.interp with left=0, right=0
+            interp_values = torch.zeros_like(times)
+            for i, x in enumerate(times):
+                idx = torch.searchsorted(tt, x)
+                if idx == 0:
+                    if x <= tt[0]:
+                        interp_values[i] = 0.0  # left=0
+                    else:
+                        interp_values[i] = waveform[0]
+                elif idx >= len(tt):
+                    if x >= tt[-1]:
+                        interp_values[i] = 0.0  # right=0
+                    else:
+                        interp_values[i] = waveform[-1]
+                else:
+                    # Linear interpolation
+                    t0, t1 = tt[idx-1], tt[idx]
+                    w0, w1 = waveform[idx-1], waveform[idx]
+                    alpha = (x - t0) / (t1 - t0)
+                    interp_values[i] = w0 + alpha * (w1 - w0)
+            
+            amplitudes += interp_values
 
         grad = make_extended_trapezoid(
             channel=channel, amplitudes=amplitudes, times=times, system=system
         )
         return grad
     
-    # Convert to numpy.ndarray for fancy-indexing later on
-    firsts, lasts = np.array(firsts), np.array(lasts)
-    common_delay = np.min(delays)
-    durs = np.array(durs)
+    # Convert to torch tensors for indexing later on
+    firsts, lasts = torch.tensor(firsts, dtype=torch.float64), torch.tensor(lasts, dtype=torch.float64)
+    common_delay = min(delays)
+    durs = torch.tensor(durs, dtype=torch.float64)
 
     # Convert everything to a regularly-sampled waveform
     waveforms = dict()
@@ -435,7 +494,7 @@ def add_gradients(
                 )
         elif isinstance(g, TrapGrad):
             if g.flat_time > 0:  # Triangle or trapezoid
-                times = np.array(
+                times = torch.tensor(
                     [
                         g.delay - common_delay,
                         g.delay - common_delay + g.rise_time,
@@ -445,18 +504,18 @@ def add_gradients(
                         + g.rise_time
                         + g.flat_time
                         + g.fall_time,
-                    ]
+                    ], dtype=torch.float64
                 )
-                amplitudes = np.array([0, g.amplitude, g.amplitude, 0])
+                amplitudes = torch.tensor([0, g.amplitude, g.amplitude, 0], dtype=torch.float64)
             else:
-                times = np.array(
+                times = torch.tensor(
                     [
                         g.delay - common_delay,
                         g.delay - common_delay + g.rise_time,
                         g.delay - common_delay + g.rise_time + g.fall_time,
-                    ]
+                    ], dtype=torch.float64
                 )
-                amplitudes = np.array([0, g.amplitude, 0])
+                amplitudes = torch.tensor([0, g.amplitude, 0], dtype=torch.float64)
             waveforms[ii] = points_to_waveform(
                 amplitudes=amplitudes,
                 times=times,
@@ -466,18 +525,18 @@ def add_gradients(
             raise ValueError("Unknown gradient type")
 
         if g.delay - common_delay > 0:
-            # Stop for numpy.arange is not g.delay - common_delay - system.grad_raster_time like in Matlab
-            # so as to include the endpoint
-            t_delay = np.arange(0, g.delay - common_delay, step=system.grad_raster_time)
-            waveforms[ii] = np.concatenate(([t_delay], waveforms[ii]))
+            # Create delay samples using torch.arange
+            t_delay = torch.arange(0, g.delay - common_delay, step=system.grad_raster_time, dtype=torch.float64)
+            waveforms[ii] = torch.cat([torch.zeros_like(t_delay), waveforms[ii]])
 
         num_points = len(waveforms[ii])
         max_length = max(num_points, max_length)
 
-    w = np.zeros(max_length)
+    w = torch.zeros(max_length, dtype=torch.float64)
     for ii in range(len(grads)):
-        wt = np.zeros(max_length)
-        wt[0 : len(waveforms[ii])] = waveforms[ii]
+        wt = torch.zeros(max_length, dtype=torch.float64)
+        waveform_len = len(waveforms[ii])
+        wt[:waveform_len] = waveforms[ii]
         w += wt
 
     grad = make_arbitrary_grad(
@@ -491,7 +550,8 @@ def add_gradients(
     # Fix the first and the last values
     # First is defined by the sum of firsts with the minimal delay (common_delay)
     # Last is defined by the sum of lasts with the maximum duration (total_duration == durs.max())
-    grad.first = np.sum(firsts[np.array(delays) == common_delay])
-    grad.last = np.sum(lasts[durs == durs.max()])
+    delays_tensor = torch.tensor(delays, dtype=torch.float64)
+    grad.first = torch.sum(firsts[delays_tensor == common_delay])
+    grad.last = torch.sum(lasts[durs == torch.max(durs)])
 
     return grad
