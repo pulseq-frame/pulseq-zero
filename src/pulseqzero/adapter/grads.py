@@ -6,7 +6,7 @@ from ..math import ceil
 
 
 def scale_grad(grad, scale):
-    grad = copy(grad)
+    grad = deepcopy(grad)
     if isinstance(grad, TrapGrad):
         grad.amplitude *= scale
     if isinstance(grad, FreeGrad):
