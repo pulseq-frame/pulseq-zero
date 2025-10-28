@@ -195,6 +195,9 @@ class Sequence:
         return "No report generated in mr0 mode"
 
     def write(self, name, create_signature, remove_duplicates):
+        from warnings import warn
+        warn("Called `Sequence.write()` in mr0 mode, which does *not* create a .seq file!")
+
         if create_signature:
             return ""
         else:
