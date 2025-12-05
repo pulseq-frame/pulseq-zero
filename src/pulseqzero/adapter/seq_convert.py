@@ -84,6 +84,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
         rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset)  # TODO: only compatible with felix MR0 version
+        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration)  # TODO: felix expects pulse_freq but this might be better. Or calculate freq from this and angle, I don't care
         rep_out.pulse.usage = rep_in[0].use
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
@@ -112,10 +113,11 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, freq_offset, shim_array, use: mr0.PulseUsage) -> None:
+    def __init__(self, angle, phase, freq_offset, duration, shim_array, use: mr0.PulseUsage) -> None:
         self.angle = angle
         self.phase = phase
         self.freq_offset = freq_offset
+        self.duration = duration
         self.shim_array = shim_array
         self.use = use
 
@@ -175,7 +177,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     events: list[TmpPulse | TmpSpoiler] = [calc_spoiler(0.0, t[0])]
     for t_start, t_end in zip(t[:-1], t[1:]):
         flip, phase = integrate_pulse(rf, t_start - step/2, t_start + step/2)
-        events.append(TmpPulse(flip, phase, rf.freq_offset, rf.shim_array, use))
+        events.append(TmpPulse(flip, phase, step, rf.freq_offset, rf.shim_array, use))
         events.append(calc_spoiler(t_start, t_end))
 
     return events
