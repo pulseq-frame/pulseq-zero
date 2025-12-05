@@ -83,6 +83,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         rep_out = seq.new_rep(event_count)
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
+        rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset)  # TODO: only compatible with felix MR0 version
         rep_out.pulse.usage = rep_in[0].use
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
@@ -173,7 +174,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     # samples and alternate pulse - spoiler
     events: list[TmpPulse | TmpSpoiler] = [calc_spoiler(0.0, t[0])]
     for t_start, t_end in zip(t[:-1], t[1:]):
-        flip, phase = rf.integrate(t_start - step/2, t_start + step/2)
+        flip, phase = integrate_pulse(rf, t_start - step/2, t_start + step/2)
         events.append(TmpPulse(flip, phase, rf.freq_offset, rf.shim_array, use))
         events.append(calc_spoiler(t_start, t_end))
 
@@ -275,3 +276,20 @@ def integrate(grad, t):
         return (t_rel * c_avg).sum()
     else:
         raise NotImplementedError
+
+
+def integrate_pulse(rf: Pulse, t_start, t_end):
+    import numpy as np
+    time_shape, amp_shape = rf._generate_shape()
+
+    # TODO: actual integration
+    # HACK: just search for the nearest sample and assume pulse is constant
+    t = (t_start + t_end) / 2
+    if t <= time_shape[0] or time_shape[-1] <= t:
+        return 0.0, 0.0
+
+    idx = np.searchsorted(time_shape, t)
+    flip = amp_shape[idx] * (t_start - t_end)
+    phase = 0.0  # not returned by the _generate_shape() function - extend!
+
+    return flip, phase
