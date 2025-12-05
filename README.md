@@ -27,6 +27,8 @@ pip install pulseqzero
 > Pulseq-zero does not define or require any dependencies.
 > That being said, it models the API of PyPulseq 1.4.2 and is only tested with that version of PyPulseq;
 > Using it for scripts that are written for other versions of PyPulseq might lead to unexpected results or errors if function names, arguments or behaviour changed.
+>
+> Starting with pulseq-zero 0.3.0, conversion to MR-zero requires a version that supports off-resonance.
 
 Pulseq-zero was displayed at [ESMRMB 2024](https://www.esmrmb2024.org/)!
 You can view the abstract here: [abstract/abstract.md](abstract/abstract.md).
