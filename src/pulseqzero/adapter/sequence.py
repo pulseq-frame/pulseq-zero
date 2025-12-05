@@ -205,5 +205,5 @@ class Sequence:
 
     # What we do all of this for:
     # To intercept pulseq calls and build an MR-zero sequence from it
-    def to_mr0(self) -> MRzeroCore.Sequence:
-        return seq_convert.convert(self)
+    def to_mr0(self, samples_offres: int = 1, samples_slicesel: int = 1) -> MRzeroCore.Sequence:
+        return seq_convert.convert(self, samples_offres, samples_slicesel)

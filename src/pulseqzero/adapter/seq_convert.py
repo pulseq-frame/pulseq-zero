@@ -14,7 +14,7 @@ def convert_tensors_to_float32(obj):
                 setattr(obj, field_name, value.to(dtype=torch.float32))
     return obj
 
-def convert(pp0) -> mr0.Sequence:
+def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
     seq = []
 
     for block in pp0.blocks:
@@ -49,7 +49,15 @@ def convert(pp0) -> mr0.Sequence:
 
         if rf:
             assert adc is None
-            seq += parse_pulse(delay, rf, grad_x, grad_y, grad_z)
+            # Use pulse sub-samples according to the type of pulse
+            if rf.freq_offset != 0:
+                samples = samples_offres
+            elif grad_x or grad_y or grad_z:
+                samples = samples_slicesel
+            else:
+                samples = 1
+
+            seq += parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples)
         elif adc:
             seq += parse_adc(delay, adc, grad_x, grad_y, grad_z)
         else:
@@ -103,9 +111,10 @@ def convert(pp0) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, shim_array, use: mr0.PulseUsage) -> None:
+    def __init__(self, angle, phase, freq_offset, shim_array, use: mr0.PulseUsage) -> None:
         self.angle = angle
         self.phase = phase
+        self.freq_offset = freq_offset
         self.shim_array = shim_array
         self.use = use
 
@@ -138,19 +147,7 @@ class TmpAdc:
         return f"Adc(phase={self.phase * 180 / pi}°, total_gradm={self.gradm.sum(0)}, total_time={self.event_time.sum(0)})"
 
 
-def parse_pulse(delay, rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse, TmpSpoiler]:
-    t = rf.delay + rf.shape_dur / 2
-    duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
-
-    gx1 = gx2 = gy1 = gy2 = gz1 = gz2 = 0.0
-    if grad_x:
-        gx1, gx2 = split_gradm(grad_x, t)
-    if grad_y:
-        gy1, gy2 = split_gradm(grad_y, t)
-    if grad_z:
-        gz1, gz2 = split_gradm(grad_z, t)
-    
-    # There is also 'inversion' and the user can possible set any other string
+def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPulse | TmpSpoiler]:
     if rf.use == 'excitation':
         use = mr0.PulseUsage.EXCIT
     elif rf.use == 'refocusing':
@@ -158,11 +155,29 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler, TmpPulse
     else:
         use = mr0.PulseUsage.UNDEF
 
-    return (
-        TmpSpoiler(t, gx1, gy1, gz1),
-        TmpPulse(rf.flip_angle, rf.phase_offset, rf.shim_array, use),
-        TmpSpoiler(duration - t, gx2, gy2, gz2)
-    )
+    def calc_spoiler(t1, t2) -> TmpSpoiler:
+        return TmpSpoiler(
+            t2 - t1,
+            integrate(grad_x, t2) - integrate(grad_x, t1) if grad_x else 0.0,
+            integrate(grad_y, t2) - integrate(grad_y, t1) if grad_y else 0.0,
+            integrate(grad_z, t2) - integrate(grad_z, t1) if grad_z else 0.0
+        )
+    
+    # time points `t`: start, center of every of the `samples` pulse parts, end
+    # gradients are emitted in between all points, rfs on the center points.
+    duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
+    step = rf.shape_dur / samples
+    t = [rf.delay + (i + 0.5) * step for i in range(samples)] + [duration]
+    
+    # first emit the spoiler up to the first rf pulse, then iterate over
+    # samples and alternate pulse - spoiler
+    events: list[TmpPulse | TmpSpoiler] = [calc_spoiler(0.0, t[0])]
+    for t_start, t_end in zip(t[:-1], t[1:]):
+        flip, phase = rf.integrate(t_start - step/2, t_start + step/2)
+        events.append(TmpPulse(flip, phase, rf.freq_offset, rf.shim_array, use))
+        events.append(calc_spoiler(t_start, t_end))
+
+    return events
 
 
 def parse_spoiler(delay, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler]:
