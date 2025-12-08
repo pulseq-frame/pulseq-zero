@@ -291,7 +291,7 @@ def integrate_pulse(rf: Pulse, t_start, t_end):
         return 0.0, 0.0
 
     idx = np.searchsorted(time_shape, t)
-    flip = amp_shape[idx] * (t_start - t_end)
-    phase = 0.0  # not returned by the _generate_shape() function - extend!
+    flip = amp_shape[idx] * (t_end - t_start)
+    phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
 
     return flip, phase
