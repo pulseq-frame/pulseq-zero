@@ -239,7 +239,7 @@ def make_sinc_pulse(
         signal = window * np.sinc(bandwidth * tt)
         flip = 2 * np.pi * duration * np.mean(signal)
 
-        return t + delay, signal * flip_angle / flip
+        return t + delay, signal * float(flip_angle) / flip
 
     rf = Pulse(
         flip_angle,

@@ -166,19 +166,21 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             integrate(grad_z, t2) - integrate(grad_z, t1) if grad_z else 0.0
         )
     
-    # time points `t`: start, center of every of the `samples` pulse parts, end
-    # gradients are emitted in between all points, rfs on the center points.
+    # time points edges of the pulse buckets which are integrated over
     duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
     step = rf.shape_dur / samples
-    t = [rf.delay + (i + 0.5) * step for i in range(samples)] + [duration]
+    # Adjusted to cover whole block
+    t_rf = [0] + [rf.delay + step * i for i in range(1, samples)] + [duration]
+    # grads are integrated from one pulse center to the next
+    t_grad = [0] + [(t1 + t2) / 2 for t1, t2 in zip(t_rf[0:], t_rf[1:])] + [duration]
     
-    # first emit the spoiler up to the first rf pulse, then iterate over
-    # samples and alternate pulse - spoiler
-    events: list[TmpPulse | TmpSpoiler] = [calc_spoiler(0.0, t[0])]
-    for t_start, t_end in zip(t[:-1], t[1:]):
-        flip, phase = integrate_pulse(rf, t_start - step/2, t_start + step/2)
+    # Alternate spoiler from one pulse center to next with pulse itself
+    events: list[TmpPulse | TmpSpoiler] = []
+    for i in range(samples):
+        events.append(calc_spoiler(t_grad[i], t_grad[i + 1]))
+        flip, phase = integrate_pulse(rf, t_rf[i], t_rf[i + 1])
         events.append(TmpPulse(flip, phase, step, rf.freq_offset, rf.shim_array, use))
-        events.append(calc_spoiler(t_start, t_end))
+    events.append(calc_spoiler(t_grad[-2], t_grad[-1]))
 
     return events
 
@@ -283,15 +285,27 @@ def integrate(grad, t):
 def integrate_pulse(rf: Pulse, t_start, t_end):
     import numpy as np
     time_shape, amp_shape = rf._generate_shape()
+    t_start = float(t_start)
+    t_end = float(t_end)
 
-    # TODO: actual integration
-    # HACK: just search for the nearest sample and assume pulse is constant
-    t = (t_start + t_end) / 2
-    if t <= time_shape[0] or time_shape[-1] <= t:
-        return 0.0, 0.0
+    # Find where t_start and t_end are placed in time_shape
+    i_start = np.searchsorted(time_shape, t_start, side="left")
+    i_end = np.searchsorted(time_shape, t_end, side="right")
+    # Find the interpolated shape values at t_start and t_end
+    v_start = np.interp(t_start, time_shape, amp_shape, left=0, right=0)
+    v_end = np.interp(t_end, time_shape, amp_shape, left=0, right=0)
+    # Construct the shape of the integrated part of the pulse
+    time = [t_start] + time_shape[i_start:i_end].tolist() + [t_end]
+    amp = [v_start] + amp_shape[i_start:i_end].tolist() + [v_end]
 
-    idx = np.searchsorted(time_shape, t)
-    flip = amp_shape[idx] * (t_end - t_start)
+    flip = 2 * np.pi * np.trapz(amp, time)
     phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
+
+    # -- for debugging --
+    # import matplotlib.pyplot as plt
+    # plt.figure(figsize=(3, 3), dpi=(100))
+    # plt.title(f"{180/np.pi * flip:.1f}°")
+    # plt.plot(time, amp)
+    # plt.show()
 
     return flip, phase
