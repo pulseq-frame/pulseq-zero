@@ -113,7 +113,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, freq_offset, duration, shim_array, use: mr0.PulseUsage) -> None:
+    def __init__(self, angle, phase, duration, freq_offset, shim_array, use: mr0.PulseUsage) -> None:
         self.angle = angle
         self.phase = phase
         self.freq_offset = freq_offset
