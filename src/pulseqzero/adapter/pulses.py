@@ -154,9 +154,18 @@ def make_gauss_pulse(
     if system is None:
         system = Opts.default
     delay = max(delay, system.rf_dead_time)
+    if bandwidth is None:
+        bandwidth = time_bw_product / duration
 
     def generate_shape():
-        raise NotImplementedError
+        import numpy as np
+        t = (np.arange(100) + 0.5) * duration / 100
+        tt = t - duration * center_pos
+        window = 1 - apodization + apodization * np.cos(2 * np.pi * tt / duration)
+        signal = window * np.exp(-np.pi * np.square(bandwidth * tt))
+        flip = 2 * np.pi * duration * np.mean(signal)
+
+        return t + delay, signal * float(flip_angle) / flip
 
     rf = Pulse(
         flip_angle,
