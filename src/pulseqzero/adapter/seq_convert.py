@@ -187,24 +187,34 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
         flip, phase = integrate_pulse(rf, t_rf[i], t_rf[i + 1])
         
         if grad_x: 
-            # distinguish between TrapGrad and FreeGrad
-            if isinstance(grad_x, FreeGrad):
-                # assuming pulse center and gradient waveform are aligned
-                grad_ampl_x = grad_x.waveform[len(grad_x.waveform)//2]
-            else: grad_ampl_x = grad_x.amplitude 
+            if rf.duration <= grad_x.delay: # gradient in block starts after pulse has ended   
+                grad_ampl_x = 0 
+            else:
+                # distinguish between TrapGrad and FreeGrad
+                if isinstance(grad_x, FreeGrad):
+                    # assuming pulse center and gradient waveform are aligned
+                    grad_ampl_x = grad_x.waveform[len(grad_x.waveform)//2]
+                else: grad_ampl_x = grad_x.amplitude 
         else: 
             grad_ampl_x = 0
             
         if grad_y: 
-            if isinstance(grad_y, FreeGrad): grad_ampl_y = grad_y.waveform[len(grad_y.waveform)//2]  
-            else: grad_ampl_y = grad_y.amplitude 
+            if rf.duration <= grad_y.delay:  
+                grad_ampl_y = 0 
+            else:
+                if isinstance(grad_y, FreeGrad):
+                    grad_ampl_y = grad_y.waveform[len(grad_y.waveform)//2]  
+                else: grad_ampl_y = grad_y.amplitude 
         else:             
             grad_ampl_y = 0 
             
         if grad_z: 
-            if isinstance(grad_z, FreeGrad):
-                grad_ampl_z = grad_z.waveform[len(grad_z.waveform)//2] 
-            else: grad_ampl_z = grad_z.amplitude 
+            if rf.duration <= grad_z.delay:           
+                grad_ampl_z = 0 
+            else:
+                if isinstance(grad_z, FreeGrad):
+                    grad_ampl_z = grad_z.waveform[len(grad_z.waveform)//2] 
+                else: grad_ampl_z = grad_z.amplitude 
         else: 
             grad_ampl_z = 0
         
