@@ -186,8 +186,9 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
         events.append(calc_spoiler(t_grad[i], t_grad[i + 1]))
         flip, phase = integrate_pulse(rf, t_rf[i], t_rf[i + 1])
         
+        rf_dur = rf.delay + rf.shape_dur # rf duration without ringdown       
         if grad_x: 
-            if rf.duration <= grad_x.delay: # gradient in block starts after pulse has ended   
+            if rf_dur <= grad_x.delay: # gradient in block starts after pulse has ended   
                 grad_ampl_x = 0 
             else:
                 # distinguish between TrapGrad and FreeGrad
@@ -199,7 +200,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             grad_ampl_x = 0
             
         if grad_y: 
-            if rf.duration <= grad_y.delay:  
+            if rf_dur <= grad_y.delay:  
                 grad_ampl_y = 0 
             else:
                 if isinstance(grad_y, FreeGrad):
@@ -209,7 +210,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             grad_ampl_y = 0 
             
         if grad_z: 
-            if rf.duration <= grad_z.delay:           
+            if rf_dur <= grad_z.delay:           
                 grad_ampl_z = 0 
             else:
                 if isinstance(grad_z, FreeGrad):
