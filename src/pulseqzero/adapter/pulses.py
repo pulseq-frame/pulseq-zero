@@ -19,7 +19,7 @@ def make_arbitrary_rf(
     system=None,
     time_bw_product=0,
     shim_array=None,
-    use=str(),
+    use="",
 ):
     if system is None:
         system = Opts.default
@@ -40,9 +40,10 @@ def make_arbitrary_rf(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -64,11 +65,14 @@ def make_arbitrary_rf(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz)
+        ret_val = (ret_val, gz)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(calc_duration(rf) + rf.ringdown_time)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -114,7 +118,8 @@ def make_block_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
 
     if system.rf_dead_time > rf.delay:
@@ -161,9 +166,10 @@ def make_gauss_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -189,11 +195,14 @@ def make_gauss_pulse(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz, gzr)
+        ret_val = (ret_val, gz, gzr)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(calc_duration(rf) + rf.ringdown_time)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -240,9 +249,10 @@ def make_sinc_pulse(
         delay,
         system.rf_ringdown_time,
         shim_array,
-        generate_shape
+        generate_shape,
+        use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -267,11 +277,14 @@ def make_sinc_pulse(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz, gzr)
+        ret_val = (ret_val, gz, gzr)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(rf.duration)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -287,6 +300,8 @@ class Pulse:
     shim_array: ...  # requres rfshim pulseq in pulseq mode
 
     _generate_shape: ...
+
+    use: str
 
     @property
     def duration(self):
