@@ -373,7 +373,7 @@ def add_gradients(
     import numpy as np
     eps = 1e-9
     def cumsum(args):
-        return torch.cumsum(args)
+        return torch.cumsum(args, dim=0)
 
     # Find out the general delay of all gradients and other statistics
     delays, firsts, lasts, durs, is_trap, is_arb = [], [], [], [], [], []
@@ -402,7 +402,7 @@ def add_gradients(
             g = grads[ii]
             if isinstance(g, TrapGrad):
                 times.extend(
-                    cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                    cumsum(torch.stack([g.delay, g.rise_time, g.flat_time, g.fall_time]))
                 )
             else:
                 times.extend(g.delay + g.tt)
