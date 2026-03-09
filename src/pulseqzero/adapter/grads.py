@@ -423,10 +423,10 @@ def add_gradients(
             g = grads[ii]
             if isinstance(g, TrapGrad):
                 if g.flat_time > 0:  # Trapezoid or triangle
-                    tt = cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                    tt = cumsum(torch.stack([g.delay, g.rise_time, g.flat_time, g.fall_time]))
                     waveform = torch.tensor([0, g.amplitude, g.amplitude, 0], dtype=torch.float64)
                 else:
-                    tt = cumsum(g.delay, g.rise_time, g.fall_time)
+                    tt = cumsum(torch.stack([g.delay, g.rise_time, g.fall_time]))
                     waveform = torch.tensor([0, g.amplitude, 0], dtype=torch.float64)
             else:
                 tt = g.delay + g.tt
