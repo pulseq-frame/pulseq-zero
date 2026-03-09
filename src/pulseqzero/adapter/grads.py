@@ -46,7 +46,7 @@ def make_trapezoid(
     channel,
     amplitude=None,
     area=None,
-    delay=0,
+    delay=torch.tensor(0.0),
     duration=None,
     fall_time=None,
     flat_area=None,
@@ -187,7 +187,7 @@ class TrapGrad:
 def make_arbitrary_grad(
     channel,
     waveform,
-    delay=0,
+    delay=torch.tensor(0.0),
     max_grad=None,
     max_slew=None,
     system=None,
