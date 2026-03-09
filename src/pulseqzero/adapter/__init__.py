@@ -8,7 +8,7 @@ def make_label(label, type, value):
 
 def calc_duration(*args):
     import torch  # needed for differentiability
-    duration = torch.zeros(1)
+    duration = torch.zeros(())
     for event in args:
         if event is not None:
             duration = torch.maximum(duration, torch.as_tensor(event.duration))
