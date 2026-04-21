@@ -298,7 +298,7 @@ def integrate_pulse(rf: Pulse, t_start, t_end):
     time = [t_start] + time_shape[i_start:i_end].tolist() + [t_end]
     amp = [v_start] + amp_shape[i_start:i_end].tolist() + [v_end]
 
-    flip = 2 * np.pi * np.trapz(amp, time)
+    flip = 2 * np.pi * np.trapezoid(amp, time)
     phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
 
     # -- for debugging --
