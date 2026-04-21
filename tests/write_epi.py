@@ -18,6 +18,8 @@ def main(TI, plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"
     Ny = 64
     slice_thickness = 3e-3  # Slice thickness
     n_slices = 1
+    
+    seq.definitions["FOV"] = fov
 
     # Set system limits
     system = pp.Opts(
@@ -41,7 +43,7 @@ def main(TI, plot: bool, write_seq: bool, seq_filename: str = "epi_pypulseq.seq"
 
     # Create 90 degree slice selection pulse and gradient
     rf, gz, _ = pp.make_sinc_pulse(
-        flip_angle=np.pi / 2,
+        flip_angle=2.5 * np.pi,
         system=system,
         duration=3e-3,
         slice_thickness=slice_thickness,

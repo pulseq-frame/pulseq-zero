@@ -88,8 +88,8 @@ def main(flips, plot: bool, write_seq: bool, seq_filename: str = "gre_pypulseq.s
         * system.grad_raster_time
     )
 
-    assert np.all(delay_TE >= 0)
-    assert np.all(delay_TR >= pp.calc_duration(gx_spoil, gz_spoil))
+    assert np.all(np.asarray(delay_TE >= 0))
+    assert np.all(np.asarray(delay_TR >= pp.calc_duration(gx_spoil, gz_spoil)))
 
     rf_phase = 0
     rf_inc = 0
