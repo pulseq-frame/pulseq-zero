@@ -21,8 +21,8 @@ from write_tse import main as build_tse
 
 N_ECHO = 16
 N_ITER = 30
-SAR_WEIGHT = 5e-2
-INITIAL_FLIP_DEG = 180.0
+TARGET_AMPLITUDE = 0.8
+INITIAL_FLIP_DEG = 160.0
 PHANTOM_PATH = os.path.join(
     os.path.dirname(__file__), '..', 'tests', 'quantalized.npz'
 )
@@ -45,13 +45,15 @@ def main():
     # Target image: the full-180° refocusing train.
     with torch.no_grad():
         target_flips = torch.full((N_ECHO,), np.pi)
-        target = simulate(target_flips, data)
+        target = TARGET_AMPLITUDE * simulate(target_flips, data)
 
     # Start the optimization from the same initial flip train.
     flips = torch.full((N_ECHO,), INITIAL_FLIP_DEG * np.pi / 180, requires_grad=True)
-    optimizer = torch.optim.Adam([flips], lr=0.05)
+    optimizer = torch.optim.Adam([flips], lr=0.02)
 
     start = simulate(flips, data).detach()
+    RMS_WEIGHT = 1 / ((start.abs() - target.abs()) ** 2).mean().sqrt()
+    SAR_WEIGHT = 1 / (flips.detach() ** 2).sum()
 
     data_hist = []
     sar_hist = []
@@ -65,7 +67,7 @@ def main():
 
         data_loss = ((reco.abs() - target.abs()) ** 2).mean().sqrt()
         sar_loss = (flips ** 2).sum()
-        loss = data_loss + SAR_WEIGHT * sar_loss
+        loss = RMS_WEIGHT * data_loss + SAR_WEIGHT * sar_loss
 
         loss.backward()
         optimizer.step()
@@ -95,8 +97,8 @@ def main():
 
     plt.subplot(2, 2, 3)
     plt.title('Loss')
-    plt.plot(data_hist, label='RMS image loss')
-    plt.plot([SAR_WEIGHT * s for s in sar_hist], label=f'{SAR_WEIGHT}·SAR')
+    plt.plot([RMS_WEIGHT * d for d in data_hist], label='RMS image loss')
+    plt.plot([SAR_WEIGHT * s for s in sar_hist], label='SAR loss')
     plt.plot(loss_hist, label='total', linestyle='--')
     plt.xlabel('iteration')
     plt.legend()
@@ -105,10 +107,10 @@ def main():
     plt.subplot(2, 2, 4)
     plt.title('Refocusing flip angles')
     cmap = plt.get_cmap('viridis')
-    for k in range(N_ECHO):
+    for i, flips in enumerate(flip_hist):
         plt.plot(
-            [f[k] * 180 / np.pi for f in flip_hist],
-            color=cmap(k / (N_ECHO - 1)),
+            [f * 180 / np.pi for f in flips],
+            color=cmap(i / (N_ITER - 1)),
         )
     plt.xlabel('iteration')
     plt.ylabel('Flip [°]')

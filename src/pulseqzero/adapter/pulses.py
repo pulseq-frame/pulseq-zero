@@ -165,7 +165,9 @@ def make_gauss_pulse(
         signal = window * np.exp(-np.pi * np.square(bandwidth * tt))
         flip = 2 * np.pi * duration * np.mean(signal)
 
-        return t + delay, signal * float(flip_angle) / flip
+        # see make_sinc_pulse.generate_shape for why we detach here.
+        fa = flip_angle.detach().item() if hasattr(flip_angle, "detach") else float(flip_angle)
+        return t + delay, signal * fa / flip
 
     rf = Pulse(
         flip_angle,
@@ -248,7 +250,11 @@ def make_sinc_pulse(
         signal = window * np.sinc(bandwidth * tt)
         flip = 2 * np.pi * duration * np.mean(signal)
 
-        return t + delay, signal * float(flip_angle) / flip
+        # detach before the scalar cast: the numeric shape is for plotting
+        # and for computing the window/full area ratio in seq_convert; the
+        # autograd reconnect to flip_angle happens through rf.flip_angle.
+        fa = flip_angle.detach().item() if hasattr(flip_angle, "detach") else float(flip_angle)
+        return t + delay, signal * fa / flip
 
     rf = Pulse(
         flip_angle,

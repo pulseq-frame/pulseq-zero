@@ -298,14 +298,17 @@ def integrate_pulse(rf: Pulse, t_start, t_end):
     time = [t_start] + time_shape[i_start:i_end].tolist() + [t_end]
     amp = [v_start] + amp_shape[i_start:i_end].tolist() + [v_end]
 
-    flip = 2 * np.pi * np.trapezoid(amp, time)
-    phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
+    # amp_shape is already scaled by the (detached) flip_angle, so its full
+    # integral equals flip_angle_detached / (2π). The window-to-full area
+    # ratio is therefore grad-free and just encodes "what fraction of the
+    # pulse is inside [t_start, t_end]". Multiplying by the live rf.flip_angle
+    # tensor reconnects autograd so gradients flow back into the user's
+    # flip-angle parameter.
+    window_area = np.trapezoid(amp, time)
+    full_area = np.trapezoid(amp_shape, time_shape)
+    fraction = float(window_area / full_area) if full_area != 0 else 0.0
 
-    # -- for debugging --
-    # import matplotlib.pyplot as plt
-    # plt.figure(figsize=(3, 3), dpi=(100))
-    # plt.title(f"{180/np.pi * flip:.1f}°")
-    # plt.plot(time, amp)
-    # plt.show()
+    flip = torch.as_tensor(rf.flip_angle) * fraction
+    phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
 
     return flip, phase
