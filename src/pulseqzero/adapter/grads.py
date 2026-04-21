@@ -46,7 +46,7 @@ def make_trapezoid(
     channel,
     amplitude=None,
     area=None,
-    delay=0,
+    delay=torch.tensor(0.0),
     duration=None,
     fall_time=None,
     flat_area=None,
@@ -187,7 +187,7 @@ class TrapGrad:
 def make_arbitrary_grad(
     channel,
     waveform,
-    delay=0,
+    delay=torch.tensor(0.0),
     max_grad=None,
     max_slew=None,
     system=None,
@@ -373,7 +373,7 @@ def add_gradients(
     import numpy as np
     eps = 1e-9
     def cumsum(args):
-        return torch.cumsum(args)
+        return torch.cumsum(args, dim=0)
 
     # Find out the general delay of all gradients and other statistics
     delays, firsts, lasts, durs, is_trap, is_arb = [], [], [], [], [], []
@@ -402,7 +402,7 @@ def add_gradients(
             g = grads[ii]
             if isinstance(g, TrapGrad):
                 times.extend(
-                    cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                    cumsum(torch.stack([g.delay, g.rise_time, g.flat_time, g.fall_time]))
                 )
             else:
                 times.extend(g.delay + g.tt)
@@ -423,10 +423,10 @@ def add_gradients(
             g = grads[ii]
             if isinstance(g, TrapGrad):
                 if g.flat_time > 0:  # Trapezoid or triangle
-                    tt = cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+                    tt = cumsum(torch.stack([g.delay, g.rise_time, g.flat_time, g.fall_time]))
                     waveform = torch.tensor([0, g.amplitude, g.amplitude, 0], dtype=torch.float64)
                 else:
-                    tt = cumsum(g.delay, g.rise_time, g.fall_time)
+                    tt = cumsum(torch.stack([g.delay, g.rise_time, g.fall_time]))
                     waveform = torch.tensor([0, g.amplitude, 0], dtype=torch.float64)
             else:
                 tt = g.delay + g.tt
