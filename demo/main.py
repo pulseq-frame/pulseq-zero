@@ -114,8 +114,6 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    _ = start  # kept for interactive inspection if needed
-
 
 if __name__ == '__main__':
     main()
