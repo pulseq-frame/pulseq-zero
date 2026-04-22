@@ -21,3 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from a fully-180° TSE refocusing train and then optimizes the refocusing
   flip-angle vector with an RMS image-fidelity loss plus a
   `sum(flips**2)` SAR penalty.
+
+### Fixed
+
+- [src/pulseqzero/adapter/pulses.py](src/pulseqzero/adapter/pulses.py): the
+  `generate_shape` closures in `make_sinc_pulse` and `make_gauss_pulse` used
+  `float(flip_angle)` on a torch tensor, which raised a scalar-conversion
+  warning and was a latent autograd break. The cast now detaches first
+  (`flip_angle.detach().item()`); the autograd chain is re-established in
+  `seq_convert.integrate_pulse` via the live `rf.flip_angle` tensor.
+- [src/pulseqzero/adapter/seq_convert.py](src/pulseqzero/adapter/seq_convert.py):
+  `integrate_pulse` previously funneled the flip through numpy
+  (`np.trapz` / `np.interp` / `.tolist()`), which silently severed gradients
+  and triggered `RuntimeError: element 0 of tensors does not require grad and
+  does not have a grad_fn` on `loss.backward()`. The windowed-flip
+  computation now forms a grad-free `window_area / full_area` ratio from the
+  numpy shape (the detached flip-angle scale cancels in the ratio) and
+  multiplies it by the live `rf.flip_angle` tensor, reconnecting autograd.
+  Switched the deprecated `np.trapz` to `np.trapezoid` at the same time.
