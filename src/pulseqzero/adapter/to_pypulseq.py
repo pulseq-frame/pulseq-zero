@@ -22,6 +22,7 @@ def _n(x):
 
 
 def _translate_pulse(ev: Pulse, system):
+    """Re-create a pulse stored as a pulseq-zero object with pypulseq."""
     factory_name = ev._pp_factory
     kwargs = dict(ev._pp_kwargs or {})
     kwargs["flip_angle"] = _n(ev.flip_angle)
@@ -46,6 +47,7 @@ def _translate_pulse(ev: Pulse, system):
 
 
 def _translate_trap(ev: TrapGrad, system):
+    """Re-create a trap gradient stored as pulseq-zero object with pypulseq."""
     return pypulseq.make_trapezoid(
         channel=ev.channel,
         amplitude=_n(ev.amplitude),
@@ -58,6 +60,7 @@ def _translate_trap(ev: TrapGrad, system):
 
 
 def _translate_free(ev: FreeGrad, system):
+    """Re-create a free gradient stored as pulseq-zero object with pypulseq."""
     tt = np.asarray(_n(ev.tt))
     wf = np.asarray(_n(ev.waveform))
     delay = _n(ev.delay)
@@ -87,6 +90,7 @@ def _translate_free(ev: FreeGrad, system):
 
 
 def _translate_adc(ev: Adc, system):
+    """Re-create an adc stored as pulseq-zero object with pypulseq."""
     return pypulseq.make_adc(
         num_samples=int(ev.num_samples),
         dwell=_n(ev.dwell),
@@ -98,10 +102,12 @@ def _translate_adc(ev: Adc, system):
 
 
 def _translate_delay(ev: Delay, system):
+    """Re-create a delay stored as pulseq-zero object with pypulseq."""
     return pypulseq.make_delay(_n(ev.delay))
 
 
 def event_to_pp(ev, system):
+    """Re-create an event stored as pulseq-zero object with pypulseq."""
     if isinstance(ev, Pulse):
         return _translate_pulse(ev, system)
     if isinstance(ev, TrapGrad):

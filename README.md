@@ -103,23 +103,22 @@ def my_gre_seq(TR, TE):
 
 ## 3. Development
 
-If you want to contribute to Pulseq-zero or make local changes to it, the easiest way is to install it locally in editable mode:
+The recommended dev toolchain is [uv](https://docs.astral.sh/uv/). Install it once ([install instructions](https://docs.astral.sh/uv/getting-started/installation/)), then run the demos straight from the repo root:
 
-1. Create a virtual environment that can use globally installed packages
-  ```bash
-  python -m venv --system-site-packages .venv
-  ```
-2. Activate this environment
-  ```bash
-  # Windows CMD
-  .venv\Scripts\activate
-  # Linux bash
-  $ source .venv/bin/activate
-  ```
-3. Install pulseq-zero in the virtual enviornment in editable mode
-  ```bash
-  pip install --editable .
-  ```
+```bash
+uv run demo/main.py        # end-to-end optimization demo (needs demo/brain.npz)
+uv run demo/write_tse.py   # build a TSE sequence, plot it, and emit tse_pypulseq.seq
+```
+
+`uv run` resolves the `demo` workspace member defined in [pyproject.toml](pyproject.toml), installs the pinned demo deps (PyPulseq 1.5.0.post1, torch, MRzeroCore, matplotlib) into `.venv/`, and picks up the editable `pulseqzero` checkout — no manual `pip install -e .` step.
+
+Good to know:
+
+- **No test suite, no linter, no CI for correctness.** The two demo scripts *are* the acceptance gate: `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR, and `demo/write_tse.py` must produce a `.seq` file that round-trips byte-for-byte against the pypulseq reference (the unified adapter guarantees this; see `to_pypulseq()` in [adapter/sequence.py](src/pulseqzero/adapter/sequence.py)).
+- **PyTorch CUDA pin.** [demo/pyproject.toml](demo/pyproject.toml) references the CUDA 12.6 wheel index (`download.pytorch.org/whl/cu126`). Swap that index URL (or remove it) if you're on CPU-only or a different CUDA version.
+- **Headless plotting.** `seq.plot()` forwards to pypulseq's plot and expects an interactive matplotlib backend. Export `MPLBACKEND=Agg` to run headless (Agg will render but not show — useful for CI-style runs).
+- **Falling back to plain pip.** If you'd rather skip uv, `pip install --editable .` from the root still works — but the root declares no runtime deps, so you need `pypulseq==1.5.0.post1`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` already in the env (a venv created with `--system-site-packages` and an existing MR-zero install is the path of least resistance).
+- **Warnings are single-fire.** `seq.to_pypulseq()` (and `seq.write()` / `seq.plot()` / other forwarders) emit a `UserWarning` the *first* time they run from a given call site, then stay quiet — Python's default warning filter dedupes by `(message, module, lineno)`. If the warning fires inside an optimization loop, move the call out of the loop.
 
 
 ## 4. API
@@ -165,8 +164,8 @@ Legend:
 | `Sequence.write`, `to_pypulseq`        | ➡️ | lazy translation, one warning per call |
 | `Sequence.check_timing`                | ⚠️ | stub returns `(True, [])` — real validation happens on `write()` |
 | `Sequence.plot`, `test_report`, `calculate_pns`, `paper_plot` | ➡️ | forwarded via `to_pypulseq()` |
-| `calc_SAR`, `make_label`               | stub | no-op |
-| `calc_rf_bandwidth`, `calc_rf_center`  | stub | numeric approximations; pulse shape detail not tracked |
+| `calc_SAR`, `make_label`               | ⚠️ | no-op |
+| `calc_rf_bandwidth`, `calc_rf_center`  | ⚠️ | numeric approximations; pulse shape detail not tracked |
 | `calc_duration`                        | ✅ | differentiable, torch.maximum-based |
 | `Opts`                                 | ➡️ | direct re-export of `pypulseq.Opts` (all fields) |
 | `make_trapezoid`, `make_extended_trapezoid`, `make_arbitrary_grad`, `add_gradients`, `scale_grad`, `split_gradient`, `split_gradient_at` | ✅ | adapter-native, differentiable |
