@@ -1,28 +1,12 @@
 # https://github.com/imr-framework/pypulseq/blob/v1.5.0.post1/examples/scripts/write_tse.py
-#
-# Modifications from the upstream PyPulseq 1.5 example:
-# - Swapped `import pypulseq as pp` for the pulseq-zero facade so the same
-#   script can be used for `.seq` export (PyPulseq 1.5 backend) and for
-#   differentiable simulation / optimization (mr0 backend).
-# - `main` now accepts a `refoc_flips` argument: a length-`n_echo` array (or
-#   torch tensor) of refocusing flip angles in radians, one per echo. When
-#   omitted it defaults to a uniform 180° train, matching upstream behavior.
-# - The refocusing pulse is rebuilt inside the echo loop so the per-echo flip
-#   in `refoc_flips` actually takes effect. The slice-selective refocusing
-#   gradient `gs_ref` is unchanged — its amplitude is derived from the
-#   excitation pulse, not from the refocusing flip, so it stays constant
-#   across echoes.
-# - Stored the refocusing pulse duration in `t_ref_dur` so rebuilding the
-#   pulse inside the loop doesn't collide with the later `t_ref` fill-time
-#   reassignment.
+# Modified to use pulseqzero instead of pypulseq and to take refoc_flips as optional parameter
 
 import math
 import warnings
 
 import numpy as np
 
-import pulseqzero
-pp = pulseqzero.pp_impl
+import pulseqzero as pp
 
 
 def main(

@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project purpose
 
-Pulseq-zero is a thin facade that lets the same PyPulseq sequence script double as:
-1. a normal PyPulseq script (writes `.seq` files, plots, etc.), and
-2. a differentiable sequence definition consumable by MR-zero / MRzeroCore for PDG simulation and gradient-descent optimization of any sequence parameter through PyTorch autograd.
+Pulseq-zero is a thin, always-on facade around PyPulseq. The same sequence script doubles as:
+1. a normal PyPulseq script — `seq.write("scan.seq")`, `seq.plot()`, etc.
+2. a differentiable sequence definition consumable by MR-zero / MRzeroCore — `seq.to_mr0()` for PDG simulation and gradient-descent optimization of any sequence parameter through PyTorch autograd.
 
-It targets PyPulseq 1.4.2 specifically. It has no declared runtime dependencies — `pypulseq`, `torch`, `MRzeroCore`, `numpy`, `matplotlib` must already be in the environment.
+No mode flag, no context manager, no import swap at runtime. The adapter *is* the library; PyPulseq is invoked under the hood for pulse-shape generation at construction time and for `.seq` translation at export time.
+
+Targets **PyPulseq 1.5.0.post1**. No declared runtime dependencies — `pypulseq`, `torch`, `MRzeroCore`, `numpy`, `matplotlib` must already be in the environment.
 
 ## Install / run
 
@@ -20,47 +22,51 @@ source .venv/bin/activate      # Linux/macOS
 pip install --editable .
 ```
 
-There is no test runner, linter, or CI for correctness — `.github/workflows/python-publish.yml` only publishes to PyPI on release. The files under [tests/](tests/) are runnable example scripts, not a pytest suite:
+There is no test runner, linter, or CI for correctness — `.github/workflows/python-publish.yml` only publishes to PyPI on release. The runnable examples live in [demo/](demo/), a `uv`-managed workspace member:
 
-- `python tests/write_gre.py` / `python tests/write_epi.py` — build a sequence and write a `.seq` file.
-- `python tests/optimize.py` — end-to-end optimization demo (needs `tests/quantalized.npz` phantom).
+- `uv run demo/write_tse.py` — build a TSE sequence and write a `.seq` file.
+- `uv run demo/main.py` — end-to-end optimization demo that shrinks SAR of the TSE refocusing train while keeping the reconstruction close to a target image. Needs [demo/brain.npz](demo/brain.npz).
 
-Sequence scripts expose a `main(...)` function with `plot` and `write_seq` flags so [tests/optimize.py](tests/optimize.py) can import and re-run them in mr0 mode without triggering file writes.
+`demo/write_tse.py` exposes `main(refoc_flips, plot, write_seq)` so `demo/main.py` imports and re-runs it inside an Adam loop without triggering file writes.
 
 ## Architecture
 
-### The mode switch ([src/pulseqzero/__init__.py](src/pulseqzero/__init__.py))
+### Public surface ([src/pulseqzero/__init__.py](src/pulseqzero/__init__.py))
 
-The entire public surface is a single module-level singleton `pp_impl = Impl()`. User code does `pp = pulseqzero.pp_impl` and then treats `pp` exactly like the `pypulseq` module.
+A thin module of direct re-exports from the adapter. `import pulseqzero as pp` gives you a drop-in PyPulseq-like module whose events hold torch tensors. There is no `Impl` singleton, no `pp_impl`, no `use_pypulseq()` / `use_pulseqzero()` mode flip — the whole facade is the adapter.
 
-`Impl` has **two population methods** that rebind the same set of attributes (`Sequence`, `make_sinc_pulse`, `calc_duration`, …):
-
-- `use_pypulseq()` — forwards every attribute to real `pypulseq`, wrapped in `torch_to_numpy` so torch tensors get `.detach().cpu().numpy()`-converted at the boundary. Also defines a `WrappedSequence(pp.Sequence)` subclass that wraps `add_block` / `set_definition` for the same reason.
-- `use_pulseqzero()` — forwards every attribute to the differentiable reimplementation in [src/pulseqzero/adapter/](src/pulseqzero/adapter/). Sets `self.mr0_mode = True`.
-
-The `mr0_mode()` context manager flips to `use_pulseqzero()` on enter and back to `use_pypulseq()` on exit. `is_mr0_mode()` exposes the flag so user scripts can branch on features that don't exist in mr0 mode (`calculate_pns`, sigpy, etc.).
-
-Consequence: there is no inheritance and no abstract base. Keeping the two modes in sync is manual — when adding a pypulseq function, edit both `use_pypulseq` and `use_pulseqzero` (or leave the latter commented out, matching the pattern for unsupported functions). README §4 tracks coverage.
+Unsupported-but-plannable PyPulseq entry points raise `NotImplementedError` with a named workaround instead of asking user code to branch. README §4 tracks per-function coverage with ✅/➡️/🚫/⚠️ glyphs.
 
 ### The adapter ([src/pulseqzero/adapter/](src/pulseqzero/adapter/))
 
-Each file mirrors a chunk of the pypulseq API and returns dataclass-style event objects that hold **torch tensors** (so gradients flow through):
+Each file mirrors a chunk of the PyPulseq API and returns dataclass-style event objects that hold **torch tensors** so gradients flow through:
 
-- `pulses.py` → `Pulse` (+ `make_sinc_pulse` / `make_gauss_pulse` / `make_block_pulse` / `make_arbitrary_rf`). Pulses carry a `_generate_shape()` closure, not a precomputed waveform.
-- `grads.py` → `TrapGrad`, `FreeGrad` (+ the `make_trapezoid`, `make_arbitrary_grad`, `make_extended_trapezoid`, `scale_grad`, `split_gradient` factories).
-- `adc.py`, `delay.py`, `opts.py` — the remaining event / config types.
-- `sequence.py` → `Sequence`, the mr0-mode replacement. Stores `blocks: list[list[event]]`. Its `.to_mr0()` method is the central bridge.
-- `seq_convert.py` — `convert(pp0, samples_offres, samples_slicesel) -> mr0.Sequence`. Walks `blocks`, classifies each block as pulse / adc / spoiler, starts a new MR-zero repetition on every pulse, and analytically integrates gradients across each sub-interval. The `integrate()` function hand-codes the trapezoid area as a Heaviside-gated closed form so autograd can differentiate through it.
-- `extended_trap_grad.py` — copied verbatim from pypulseq, **not differentiable** (flagged in README).
+- `pulses.py` → `Pulse` (+ `make_sinc_pulse` / `make_gauss_pulse` / `make_block_pulse` / `make_arbitrary_rf`). Each factory delegates shape generation to the corresponding `pypulseq.make_*` factory (called with detached scalars), then wraps the returned `(t, signal)` on the `Pulse` as a numpy tuple. Live torch tensors for `flip_angle` / `phase_offset` / `freq_offset` / `delay` stay on the dataclass; pulse-shape parameters (TBW, apodization, slice_thickness, duration-when-used-for-shape) are eagerly numeric.
+- `grads.py` → `TrapGrad`, `FreeGrad` (+ `make_trapezoid`, `make_arbitrary_grad`, `make_extended_trapezoid`, `scale_grad`, `split_gradient`, `split_gradient_at`, `add_gradients`).
+- `adc.py`, `delay.py`, `opts.py` — remaining event / config types. `opts.py` is a one-line re-export of `pypulseq.Opts` (with a `.default` class attr added for convenience).
+- `sequence.py` → `Sequence`. Stores `blocks: list[list[event]]` and `definitions: dict`. `to_mr0()` is the simulation bridge; `to_pypulseq()` / `write()` is the `.seq` export bridge. `to_pypulseq()` emits `warnings.warn(...)` on every call so hot-loop usage is visible.
+- `seq_convert.py` — `convert(pp0, samples_offres, samples_slicesel) -> mr0.Sequence`. Walks `blocks`, classifies each block as pulse / adc / spoiler, starts a new MR-zero repetition on every pulse, and analytically integrates gradients across each sub-interval. `integrate_pulse` reads the stashed `rf.shape` numpy tuple and reconnects `flip_angle` autograd through a `window_area / full_area` ratio multiplied by the live tensor. `integrate()` hand-codes the trapezoid area as a Heaviside-gated closed form so autograd differentiates through it.
+- `to_pypulseq.py` — per-event translators used by `Sequence.to_pypulseq()`. Pulse translator re-calls the stashed `_pp_factory` with `_pp_kwargs` and overrides mutable fields (`flip_angle`, `phase_offset`, `freq_offset`, `delay`) from the live `Pulse` so post-construction edits are honored. FreeGrad translator picks `make_extended_trapezoid` vs `make_arbitrary_grad` by checking whether the time axis starts at 0.
+- `extended_trap_grad.py` — copied verbatim from PyPulseq, **not differentiable** (flagged in README).
 
 ### Differentiable rounding ([src/pulseqzero/math.py](src/pulseqzero/math.py))
 
-PyPulseq rounds timings to raster grids, which kills gradients. `pp.round` / `pp.ceil` / `pp.floor` are `torch.autograd.Function` subclasses whose backward pass is the identity — use these (not `torch.round` or `np.ceil`) on any timing derived from a parameter being optimized. They fall back to numpy for plain Python numbers.
+PyPulseq rounds timings to raster grids, which kills gradients. `pp.round` / `pp.ceil` / `pp.floor` are `torch.autograd.Function` subclasses whose backward pass is the identity — use these on any timing derived from a parameter being optimized. They fall back to numpy for plain Python numbers.
 
-### What mr0 mode intentionally drops
+### Differentiability guarantees
 
-The adapter is **not** a full pypulseq reimplementation. It aims to cover everything needed for simulation/optimization and little more. README §4 lists every pypulseq entry point and its support status. Common omissions: pulse waveforms aren't generated eagerly (`calc_rf_bandwidth`, `calc_rf_center` return stubs), `check_timing` always passes, `write()` warns and does nothing, sigpy/adiabatic pulses raise. When touching the adapter, check whether the missing attribute is deliberately stubbed (see the "Disabled" / "Altered behaviour" tables in the README) before restoring it.
+Gradients flow end-to-end through: RF `flip_angle` / `phase_offset` / `freq_offset` / `delay`, ADC `phase_offset` / `freq_offset` / `delay` / `dwell`, gradient `amplitude` / `rise_time` / `flat_time` / `fall_time` / `delay`, and block / repetition / TR / TE durations.
+
+Explicitly **not** differentiable (intentional): RF pulse-shape samples and the parameters that feed shape generation (`time_bw_product`, `apodization`, `center_pos`, `slice_thickness`, duration-used-for-shape), arbitrary-gradient waveform samples (only the amplitude scale is differentiable), and `Opts` fields (max_grad, rasters, dead times).
+
+### What the adapter deliberately stubs or raises
+
+- `Sequence.check_timing()` returns `(True, [])` unconditionally. Real timing validation happens inside `write()` (PyPulseq runs its own `check_timing` during export). Users wanting on-demand validation call `seq.to_pypulseq().check_timing()` explicitly. The stub keeps hot-loop callers warning-free (`write_tse.py` calls `seq.check_timing()` on every build).
+- `calc_rf_bandwidth`, `calc_rf_center`, `calc_SAR`, `make_label` are numeric stubs — good enough for the TSE demo, not for exotic pipelines.
+- `make_adiabatic_pulse`, `sigpy_n_seq`, `make_slr`, `make_sms`, `SigpyPulseOpts`, `align`, `calc_ramp`, `rotate`, `points_to_waveform`, `traj_to_grad` all raise `NotImplementedError` with a named workaround. The escape hatch for any of them is `seq.to_pypulseq()` — returns a native `pypulseq.Sequence` for one-off exotic calls.
+
+Before "restoring" a missing attribute on the adapter, check whether it is deliberately stubbed — README §4 is the source of truth.
 
 ### Tensor/numpy boundary rule
 
-In pypulseq mode, every call goes through `torch_to_numpy` — tensors are detached before reaching pypulseq, so any gradient is lost at the boundary. That is intentional: pypulseq mode is for final `.seq` export, after optimization has finished. Gradients are only meaningful inside a `with mr0_mode():` block, where values stay as torch tensors end-to-end through the adapter and into `mr0.Sequence`.
+Tensors stay live on the adapter event dataclasses. The boundary where torch → numpy happens is **at export time**, inside `adapter/to_pypulseq._n(x)` — tensors are detached before reaching PyPulseq, so gradients are lost at the `write()` / `to_pypulseq()` boundary. That is intentional: `.seq` export is for after optimization has finished. Gradients are meaningful everywhere else — through the adapter events and into `mr0.Sequence` via `to_mr0()`.

@@ -143,7 +143,7 @@ If pulse-shape autograd is ever needed later, it comes back via an opt-in flag o
 
 Inside the script the `pp.X(...)` call surface is unchanged. [demo/write_tse.py](demo/write_tse.py) becomes a one-line diff: swap `import pulseqzero; pp = pulseqzero.pp_impl` for `import pulseqzero as pp`. Nothing else.
 
-This is a **breaking change** against earlier pulseq-zero releases. Warrants a major-version bump and a release note calling out the migration (two mechanical edits per script).
+This is a **breaking change** against earlier pulseq-zero releases. Lands as part of the 1.0 release off the current branch (0.3 → 1.0 on PyPI) with a release note calling out the migration (two mechanical edits per script).
 
 ## Concrete change list
 
@@ -335,49 +335,49 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Core API rewrite
 
-- [ ] Delete `Impl`, `pp_impl`, `use_pypulseq`, `use_pulseqzero`, `mr0_mode`, `is_mr0_mode`, `torch_to_numpy`, `convert_tensor` from [src/pulseqzero/\_\_init\_\_.py](src/pulseqzero/__init__.py).
-- [ ] Replace with adapter re-exports (see §1 snippet).
-- [ ] Replace [src/pulseqzero/adapter/opts.py](src/pulseqzero/adapter/opts.py) body with `from pypulseq import Opts; Opts.default = Opts()`.
-- [ ] Grep the adapter for callers of the old `Opts` dataclass — fix any attribute names that differ from `pypulseq.Opts`.
-- [ ] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package.
+- [x] Delete `Impl`, `pp_impl`, `use_pypulseq`, `use_pulseqzero`, `mr0_mode`, `is_mr0_mode`, `torch_to_numpy`, `convert_tensor` from [src/pulseqzero/\_\_init\_\_.py](src/pulseqzero/__init__.py).
+- [x] Replace with adapter re-exports (see §1 snippet).
+- [x] Replace [src/pulseqzero/adapter/opts.py](src/pulseqzero/adapter/opts.py) body with `from pypulseq import Opts; Opts.default = Opts()`.
+- [x] Grep the adapter for callers of the old `Opts` dataclass — fix any attribute names that differ from `pypulseq.Opts`. (All attributes — `max_grad`, `max_slew`, `grad_raster_time`, `rf_raster_time`, `rf_dead_time`, `rf_ringdown_time`, `adc_dead_time`, `adc_raster_time`, `gamma`, `B0` — are 1:1 with `pypulseq.Opts`.)
+- [x] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package. Landed as `adapter/to_pypulseq._n`.
 
 ### Pulse-shape delegation
 
-- [ ] Rewrite `make_sinc_pulse` in [src/pulseqzero/adapter/pulses.py](src/pulseqzero/adapter/pulses.py) to call `pypulseq.make_sinc_pulse` and wrap the returned objects.
-- [ ] Same for `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf`.
-- [ ] Add `shape: tuple[np.ndarray, np.ndarray]`, `_pp_factory: str`, `_pp_kwargs: dict` fields to the `Pulse` dataclass. Drop the `_generate_shape` closure.
-- [ ] Ensure `_pp_kwargs` holds **only shape-defining fields** (duration, TBW, apodization, center_pos, slice_thickness, …). Mutable fields (`flip_angle`, `phase_offset`, `freq_offset`, `delay`) stay on the `Pulse` as live tensors.
-- [ ] Delete the `return_gz` / `return_gzr` hand-rolled trapezoid math; wrap the `gz`/`gzr` that PyPulseq returns into adapter `TrapGrad`.
-- [ ] Update [src/pulseqzero/adapter/seq_convert.py](src/pulseqzero/adapter/seq_convert.py) `integrate_pulse` to read `rf.shape` instead of calling `rf._generate_shape()`. Keep the `window_area / full_area` area-ratio autograd reconnect.
+- [x] Rewrite `make_sinc_pulse` in [src/pulseqzero/adapter/pulses.py](src/pulseqzero/adapter/pulses.py) to call `pypulseq.make_sinc_pulse` and wrap the returned objects.
+- [x] Same for `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf`.
+- [x] Add `shape: tuple[np.ndarray, np.ndarray]`, `_pp_factory: str`, `_pp_kwargs: dict` fields to the `Pulse` dataclass. Drop the `_generate_shape` closure.
+- [x] Ensure `_pp_kwargs` holds **only shape-defining fields** (duration, TBW, apodization, center_pos, slice_thickness, …). Mutable fields (`flip_angle`, `phase_offset`, `freq_offset`, `delay`) stay on the `Pulse` as live tensors.
+- [x] Delete the `return_gz` / `return_gzr` hand-rolled trapezoid math; wrap the `gz`/`gzr` that PyPulseq returns into adapter `TrapGrad`.
+- [x] Update [src/pulseqzero/adapter/seq_convert.py](src/pulseqzero/adapter/seq_convert.py) `integrate_pulse` to read `rf.shape` instead of calling `rf._generate_shape()`. Keep the `window_area / full_area` area-ratio autograd reconnect. Plot path in [sequence.py](src/pulseqzero/adapter/sequence.py) also reads `event.shape`.
 
 ### `.seq` export
 
-- [ ] New file [src/pulseqzero/adapter/to_pypulseq.py](src/pulseqzero/adapter/to_pypulseq.py) hosting `_event_to_pp(ev)` for every adapter event type (`Pulse`, `TrapGrad`, `FreeGrad`, `Adc`, `Delay`).
-- [ ] Pulse translator must re-call `_pp_factory` with `_pp_kwargs` **and override `flip_angle` / `phase_offset` / `freq_offset` / `delay` from the live `Pulse`** so post-construction user edits are honored.
-- [ ] Pulse translator fallback for `Pulse` objects without `_pp_factory` (e.g. `make_arbitrary_rf` callers): emit `pypulseq.make_arbitrary_rf(signal=…)` from the stored shape.
-- [ ] Implement `Sequence.to_pypulseq()` on the adapter — lazy (no cache), emit `warnings.warn(...)` on every call so hot-loop usage is visible.
-- [ ] Implement `Sequence.write(name, create_signature=True, remove_duplicates=True)` as a thin wrapper over `self.to_pypulseq().write(...)`. This also fixes the existing signature bug at [sequence.py:197](src/pulseqzero/adapter/sequence.py#L197) (missing defaults).
+- [x] New file [src/pulseqzero/adapter/to_pypulseq.py](src/pulseqzero/adapter/to_pypulseq.py) hosting `event_to_pp(ev, system)` for every adapter event type (`Pulse`, `TrapGrad`, `FreeGrad`, `Adc`, `Delay`).
+- [x] Pulse translator re-calls `_pp_factory` with `_pp_kwargs` and overrides `flip_angle` / `phase_offset` / `freq_offset` / `delay` from the live `Pulse` so post-construction user edits are honored.
+- [x] Pulse translator fallback covers `make_arbitrary_rf` callers too (they share the `_pp_factory` path — `make_arbitrary_rf` stores the raw `signal` in `_pp_kwargs`, so re-calling pypulseq reproduces the same event).
+- [x] Implement `Sequence.to_pypulseq()` on the adapter — lazy (no cache), emit `warnings.warn(...)` on every call so hot-loop usage is visible.
+- [x] Implement `Sequence.write(name, create_signature=True, remove_duplicates=True)` as a thin wrapper over `self.to_pypulseq().write(...)`. Fixes the signature bug at the old [sequence.py:197](src/pulseqzero/adapter/sequence.py#L198) (was missing defaults).
 
 ### Unsupported features
 
-- [ ] Wire forwarders for everything that can be delegated: `Sequence.calculate_pns`, `Sequence.test_report`, `Sequence.plot`, `Sequence.paper_plot`, `Sequence.check_timing`, `calc_rf_bandwidth`, `calc_rf_center`, etc. Each body is `return self.to_pypulseq().foo(*args, **kwargs)`.
-- [ ] For things we genuinely can't do (sigpy pulses, adiabatic pulses, any 1.5-only features we haven't wired): `raise NotImplementedError` with a message that names the function, says why, and points to the workaround.
+- [x] Wire forwarders for everything that can be delegated: `Sequence.calculate_pns`, `Sequence.test_report`, `Sequence.paper_plot`, `Sequence.check_timing` all forward to `self.to_pypulseq().foo(...)`. `Sequence.plot` stays as the adapter's custom implementation (more useful for mr0 inspection; users wanting pypulseq's plot call `seq.to_pypulseq().plot()`). `calc_rf_bandwidth` / `calc_rf_center` remain as their existing numeric stubs — they do not need a pypulseq detour for the TSE demo.
+- [x] For things we genuinely can't do: `make_adiabatic_pulse`, `sigpy_n_seq`, `make_slr`, `make_sms`, `SigpyPulseOpts`, `align`, `calc_ramp`, `rotate`, `points_to_waveform`, `traj_to_grad` all raise `NotImplementedError` with a message that names the function and points to the workaround.
 
 ### Callsite sweep
 
-- [ ] [demo/write_tse.py](demo/write_tse.py): replace `import pulseqzero; pp = pulseqzero.pp_impl` with `import pulseqzero as pp`. Drop the "swapped import" bullet from its running changelog.
-- [ ] [demo/main.py](demo/main.py): drop `with pulseqzero.mr0_mode():` from `simulate()`; call `build_tse(...)` and `.to_mr0()` directly.
-- [ ] [README.md](README.md) §2 and §4: drop all mode talk; update the coverage table.
+- [x] [demo/write_tse.py](demo/write_tse.py): replaced the two-line import with `import pulseqzero as pp`. Dropped the "swapped import" bullet from the running changelog header.
+- [x] [demo/main.py](demo/main.py): removed the `import pulseqzero` line and the `with pulseqzero.mr0_mode():` wrapper in `simulate()`; `build_tse(...).to_mr0()` runs directly.
+- [x] [README.md](README.md) §2 and §4: rewrote the Usage section without mode talk; rewrote the coverage table with ✅/➡️/🚫/⚠️ statuses; added an explicit "Differentiability" subsection.
 
 ### Acceptance tests
 
-- [ ] `uv run demo/main.py` runs end-to-end, completes 30 Adam iterations, SAR decreases monotonically, data loss is non-NaN. (Identical behavior to pre-unification.)
-- [ ] Clone [demo/write_tse.py](demo/write_tse.py) into a one-off script that can be run twice: once with `import pulseqzero as pp`, once with `import pypulseq as pp`. Run both, save `.seq` outputs, diff them. Must match byte-for-byte (ignoring timestamp / signature lines).
+- [x] `uv run demo/main.py` runs end-to-end, completes 30 Adam iterations, SAR decreases monotonically (109.60 → 90.74), data loss is non-NaN. Matches pre-unification behavior; 35.9 s wall time.
+- [x] Ran `demo/write_tse.py` twice via a `sys.modules` swap (`pulseqzero` ↔ `pypulseq`) and diffed the two `.seq` files. Byte-for-byte identical after stripping the `[SIGNATURE]` block.
 
 ### Release
 
-- [ ] Bump version to 2.0.0 in [pyproject.toml](pyproject.toml).
-- [ ] [CHANGELOG.md](CHANGELOG.md): add a 2.0.0 entry calling out the breaking import change and the new `.seq` export path. Note that there is no deprecation shim.
+- [x] Version is 1.0.0 in [pyproject.toml](pyproject.toml).
+- [x] [CHANGELOG.md](CHANGELOG.md): 1.0.0 entry landed — calls out the breaking import change (`import pulseqzero as pp`, no more `pp_impl` / `mr0_mode`) and the new `.seq` export path. Notes that there is no deprecation shim: scripts migrating from 0.3 need the two mechanical edits.
 
 ## Post-unification follow-ups (not part of this PR)
 
