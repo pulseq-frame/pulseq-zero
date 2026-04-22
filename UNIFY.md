@@ -143,7 +143,7 @@ If pulse-shape autograd is ever needed later, it comes back via an opt-in flag o
 
 Inside the script the `pp.X(...)` call surface is unchanged. [demo/write_tse.py](demo/write_tse.py) becomes a one-line diff: swap `import pulseqzero; pp = pulseqzero.pp_impl` for `import pulseqzero as pp`. Nothing else.
 
-This is a **breaking change** against earlier pulseq-zero releases. Warrants a major-version bump and a release note calling out the migration (two mechanical edits per script).
+This is a **breaking change** against earlier pulseq-zero releases. Lands as part of the 1.0 release off the current branch (0.3 → 1.0 on PyPI) with a release note calling out the migration (two mechanical edits per script).
 
 ## Concrete change list
 
@@ -376,8 +376,8 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Release
 
-- [ ] Bump version to 2.0.0 in [pyproject.toml](pyproject.toml).
-- [ ] [CHANGELOG.md](CHANGELOG.md): add a 2.0.0 entry calling out the breaking import change and the new `.seq` export path. Note that there is no deprecation shim.
+- [ ] Confirm version is 1.0.0 in [pyproject.toml](pyproject.toml) (already bumped on this branch).
+- [ ] [CHANGELOG.md](CHANGELOG.md): finalize the 1.0.0 entry — call out the breaking import change (`import pulseqzero as pp`, no more `pp_impl` / `mr0_mode`) and the new `.seq` export path. Note that there is no deprecation shim: scripts migrating from 0.3 need the two mechanical edits.
 
 ## Post-unification follow-ups (not part of this PR)
 
