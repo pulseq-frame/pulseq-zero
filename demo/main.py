@@ -14,8 +14,6 @@ import MRzeroCore as mr0
 import numpy as np
 import torch
 
-import pulseqzero
-
 from write_tse import main as build_tse
 
 
@@ -27,8 +25,7 @@ PHANTOM_PATH = os.path.join(os.path.dirname(__file__), 'brain.npz')
 
 
 def simulate(flips, data):
-    with pulseqzero.mr0_mode():
-        seq = build_tse(refoc_flips=flips).to_mr0()
+    seq = build_tse(refoc_flips=flips).to_mr0()
 
     graph = mr0.compute_graph(seq, data)
     signal = mr0.execute_graph(graph, seq, data, print_progress=False)

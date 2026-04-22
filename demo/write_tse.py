@@ -1,9 +1,6 @@
 # https://github.com/imr-framework/pypulseq/blob/v1.5.0.post1/examples/scripts/write_tse.py
 #
 # Modifications from the upstream PyPulseq 1.5 example:
-# - Swapped `import pypulseq as pp` for the pulseq-zero facade so the same
-#   script can be used for `.seq` export (PyPulseq 1.5 backend) and for
-#   differentiable simulation / optimization (mr0 backend).
 # - `main` now accepts a `refoc_flips` argument: a length-`n_echo` array (or
 #   torch tensor) of refocusing flip angles in radians, one per echo. When
 #   omitted it defaults to a uniform 180° train, matching upstream behavior.
@@ -21,8 +18,7 @@ import warnings
 
 import numpy as np
 
-import pulseqzero
-pp = pulseqzero.pp_impl
+import pulseqzero as pp
 
 
 def main(

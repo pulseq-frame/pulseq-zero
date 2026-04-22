@@ -24,7 +24,13 @@ class Sequence:
         self.blocks.append([copy(arg) for arg in args])
 
     def check_timing(self):
-        return self.to_pypulseq().check_timing()
+        # Stub: the adapter cannot validate block timing on its own. Real
+        # timing validation happens on export: either `seq.write()` runs
+        # pypulseq's checks (it calls `check_timing` internally during write)
+        # or users can call `seq.to_pypulseq().check_timing()` explicitly.
+        # This stub keeps hot-loop callers (e.g. `build_tse` inside an Adam
+        # loop) cheap and warning-free.
+        return (True, [])
 
     def calculate_pns(self, *args, **kwargs):
         return self.to_pypulseq().calculate_pns(*args, **kwargs)

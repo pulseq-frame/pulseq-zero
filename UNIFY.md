@@ -365,9 +365,9 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Callsite sweep
 
-- [ ] [demo/write_tse.py](demo/write_tse.py): replace `import pulseqzero; pp = pulseqzero.pp_impl` with `import pulseqzero as pp`. Drop the "swapped import" bullet from its running changelog.
-- [ ] [demo/main.py](demo/main.py): drop `with pulseqzero.mr0_mode():` from `simulate()`; call `build_tse(...)` and `.to_mr0()` directly.
-- [ ] [README.md](README.md) §2 and §4: drop all mode talk; update the coverage table.
+- [x] [demo/write_tse.py](demo/write_tse.py): replaced the two-line import with `import pulseqzero as pp`. Dropped the "swapped import" bullet from the running changelog header.
+- [x] [demo/main.py](demo/main.py): removed the `import pulseqzero` line and the `with pulseqzero.mr0_mode():` wrapper in `simulate()`; `build_tse(...).to_mr0()` runs directly.
+- [x] [README.md](README.md) §2 and §4: rewrote the Usage section without mode talk; rewrote the coverage table with ✅/➡️/🚫/⚠️ statuses; added an explicit "Differentiability" subsection.
 
 ### Acceptance tests
 
