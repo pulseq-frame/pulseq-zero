@@ -137,6 +137,8 @@ def make_trapezoid(
 
 def calc_params_for_area(area, max_slew, max_grad, grad_raster_time):
     rise_time = ceil((abs(area) / max_slew)**0.5 / grad_raster_time) * grad_raster_time
+    if rise_time == 0:
+        rise_time = grad_raster_time
     amplitude = area / rise_time
     t_eff = rise_time
 
