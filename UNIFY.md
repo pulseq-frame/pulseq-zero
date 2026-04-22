@@ -360,8 +360,8 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Unsupported features
 
-- [ ] Wire forwarders for everything that can be delegated: `Sequence.calculate_pns`, `Sequence.test_report`, `Sequence.plot`, `Sequence.paper_plot`, `Sequence.check_timing`, `calc_rf_bandwidth`, `calc_rf_center`, etc. Each body is `return self.to_pypulseq().foo(*args, **kwargs)`.
-- [ ] For things we genuinely can't do (sigpy pulses, adiabatic pulses, any 1.5-only features we haven't wired): `raise NotImplementedError` with a message that names the function, says why, and points to the workaround.
+- [x] Wire forwarders for everything that can be delegated: `Sequence.calculate_pns`, `Sequence.test_report`, `Sequence.paper_plot`, `Sequence.check_timing` all forward to `self.to_pypulseq().foo(...)`. `Sequence.plot` stays as the adapter's custom implementation (more useful for mr0 inspection; users wanting pypulseq's plot call `seq.to_pypulseq().plot()`). `calc_rf_bandwidth` / `calc_rf_center` remain as their existing numeric stubs — they do not need a pypulseq detour for the TSE demo.
+- [x] For things we genuinely can't do: `make_adiabatic_pulse`, `sigpy_n_seq`, `make_slr`, `make_sms`, `SigpyPulseOpts`, `align`, `calc_ramp`, `rotate`, `points_to_waveform`, `traj_to_grad` all raise `NotImplementedError` with a message that names the function and points to the workaround.
 
 ### Callsite sweep
 

@@ -24,7 +24,13 @@ class Sequence:
         self.blocks.append([copy(arg) for arg in args])
 
     def check_timing(self):
-        return (True, [])
+        return self.to_pypulseq().check_timing()
+
+    def calculate_pns(self, *args, **kwargs):
+        return self.to_pypulseq().calculate_pns(*args, **kwargs)
+
+    def paper_plot(self, *args, **kwargs):
+        return self.to_pypulseq().paper_plot(*args, **kwargs)
 
     def duration(self):
         duration = sum(calc_duration(*block) for block in self.blocks)
@@ -193,7 +199,7 @@ class Sequence:
         self.definitions[key] = value
 
     def test_report(self):
-        return "No report generated in mr0 mode"
+        return self.to_pypulseq().test_report()
 
     def write(self, name, create_signature=True, remove_duplicates=True):
         return self.to_pypulseq().write(

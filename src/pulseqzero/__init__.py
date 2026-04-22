@@ -25,6 +25,18 @@ from .adapter import (
     make_gauss_pulse,
     make_block_pulse,
     make_arbitrary_rf,
+    # Not implemented in the adapter — these raise NotImplementedError
+    # with a clear message pointing to the workaround.
+    make_adiabatic_pulse,
+    sigpy_n_seq,
+    make_slr,
+    make_sms,
+    SigpyPulseOpts,
+    align,
+    calc_ramp,
+    rotate,
+    points_to_waveform,
+    traj_to_grad,
 )
 
 try:
