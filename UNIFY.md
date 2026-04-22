@@ -339,7 +339,7 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 - [x] Replace with adapter re-exports (see §1 snippet).
 - [x] Replace [src/pulseqzero/adapter/opts.py](src/pulseqzero/adapter/opts.py) body with `from pypulseq import Opts; Opts.default = Opts()`.
 - [x] Grep the adapter for callers of the old `Opts` dataclass — fix any attribute names that differ from `pypulseq.Opts`. (All attributes — `max_grad`, `max_slew`, `grad_raster_time`, `rf_raster_time`, `rf_dead_time`, `rf_ringdown_time`, `adc_dead_time`, `adc_raster_time`, `gamma`, `B0` — are 1:1 with `pypulseq.Opts`.)
-- [ ] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package. *(Deferred until the `to_pypulseq` translator lands in §6.)*
+- [x] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package. Landed as `adapter/to_pypulseq._n`.
 
 ### Pulse-shape delegation
 
@@ -371,13 +371,13 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Acceptance tests
 
-- [ ] `uv run demo/main.py` runs end-to-end, completes 30 Adam iterations, SAR decreases monotonically, data loss is non-NaN. (Identical behavior to pre-unification.)
-- [ ] Clone [demo/write_tse.py](demo/write_tse.py) into a one-off script that can be run twice: once with `import pulseqzero as pp`, once with `import pypulseq as pp`. Run both, save `.seq` outputs, diff them. Must match byte-for-byte (ignoring timestamp / signature lines).
+- [x] `uv run demo/main.py` runs end-to-end, completes 30 Adam iterations, SAR decreases monotonically (109.60 → 90.74), data loss is non-NaN. Matches pre-unification behavior; 35.9 s wall time.
+- [x] Ran `demo/write_tse.py` twice via a `sys.modules` swap (`pulseqzero` ↔ `pypulseq`) and diffed the two `.seq` files. Byte-for-byte identical after stripping the `[SIGNATURE]` block.
 
 ### Release
 
-- [ ] Confirm version is 1.0.0 in [pyproject.toml](pyproject.toml) (already bumped on this branch).
-- [ ] [CHANGELOG.md](CHANGELOG.md): finalize the 1.0.0 entry — call out the breaking import change (`import pulseqzero as pp`, no more `pp_impl` / `mr0_mode`) and the new `.seq` export path. Note that there is no deprecation shim: scripts migrating from 0.3 need the two mechanical edits.
+- [x] Version is 1.0.0 in [pyproject.toml](pyproject.toml).
+- [x] [CHANGELOG.md](CHANGELOG.md): 1.0.0 entry landed — calls out the breaking import change (`import pulseqzero as pp`, no more `pp_impl` / `mr0_mode`) and the new `.seq` export path. Notes that there is no deprecation shim: scripts migrating from 0.3 need the two mechanical edits.
 
 ## Post-unification follow-ups (not part of this PR)
 
