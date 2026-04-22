@@ -84,7 +84,10 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
         rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset)  # TODO: only compatible with felix MR0 version
-        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration)  # TODO: felix expects pulse_freq but this might be better. Or calculate freq from this and angle, I don't care
+        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration)        # TODO: felix expects pulse_freq but this might be better. Or calculate freq from this and angle, I don't care
+        rep_out.pulse.grad = torch.as_tensor([rep_in[0].grad_x, rep_in[0].grad_y, rep_in[0].grad_z]) # TODO: only compatible with felix MR0 version       
+        rep_out.pulse.off_res = (rep_out.pulse.freq_offset != 0) or (rep_out.pulse.grad is not torch.tensor([0.,0.,0.]))           # TODO: only compatible with felix MR0 version; flag indicates if offres matrix should be used
+        
         rep_out.pulse.usage = rep_in[0].use
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
@@ -113,10 +116,13 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, duration, freq_offset, shim_array, use: mr0.PulseUsage) -> None:
+    def __init__(self, angle, phase, duration, freq_offset, grad_x, grad_y, grad_z, shim_array, use: mr0.PulseUsage) -> None:
         self.angle = angle
         self.phase = phase
-        self.freq_offset = freq_offset
+        self.freq_offset = freq_offset 
+        self.grad_x = grad_x
+        self.grad_y = grad_y
+        self.grad_z = grad_z
         self.duration = duration
         self.shim_array = shim_array
         self.use = use
@@ -179,7 +185,41 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     for i in range(samples):
         events.append(calc_spoiler(t_grad[i], t_grad[i + 1]))
         flip, phase = integrate_pulse(rf, t_rf[i], t_rf[i + 1])
-        events.append(TmpPulse(flip, phase, step, rf.freq_offset, rf.shim_array, use))
+        
+        rf_dur = rf.delay + rf.shape_dur # rf duration without ringdown       
+        if grad_x: 
+            if rf_dur <= grad_x.delay: # gradient in block starts after pulse has ended   
+                grad_ampl_x = 0 
+            else:
+                # distinguish between TrapGrad and FreeGrad
+                if isinstance(grad_x, FreeGrad):
+                    # assuming pulse center and gradient waveform are aligned
+                    grad_ampl_x = grad_x.waveform[len(grad_x.waveform)//2]
+                else: grad_ampl_x = grad_x.amplitude 
+        else: 
+            grad_ampl_x = 0
+            
+        if grad_y: 
+            if rf_dur <= grad_y.delay:  
+                grad_ampl_y = 0 
+            else:
+                if isinstance(grad_y, FreeGrad):
+                    grad_ampl_y = grad_y.waveform[len(grad_y.waveform)//2]  
+                else: grad_ampl_y = grad_y.amplitude 
+        else:             
+            grad_ampl_y = 0 
+            
+        if grad_z: 
+            if rf_dur <= grad_z.delay:           
+                grad_ampl_z = 0 
+            else:
+                if isinstance(grad_z, FreeGrad):
+                    grad_ampl_z = grad_z.waveform[len(grad_z.waveform)//2] 
+                else: grad_ampl_z = grad_z.amplitude 
+        else: 
+            grad_ampl_z = 0
+        
+        events.append(TmpPulse(flip, phase, step, rf.freq_offset, grad_ampl_x, grad_ampl_y, grad_ampl_z, rf.shim_array, use))
     events.append(calc_spoiler(t_grad[-2], t_grad[-1]))
 
     return events
