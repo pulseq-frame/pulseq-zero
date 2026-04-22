@@ -335,11 +335,11 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Core API rewrite
 
-- [ ] Delete `Impl`, `pp_impl`, `use_pypulseq`, `use_pulseqzero`, `mr0_mode`, `is_mr0_mode`, `torch_to_numpy`, `convert_tensor` from [src/pulseqzero/\_\_init\_\_.py](src/pulseqzero/__init__.py).
-- [ ] Replace with adapter re-exports (see §1 snippet).
-- [ ] Replace [src/pulseqzero/adapter/opts.py](src/pulseqzero/adapter/opts.py) body with `from pypulseq import Opts; Opts.default = Opts()`.
-- [ ] Grep the adapter for callers of the old `Opts` dataclass — fix any attribute names that differ from `pypulseq.Opts`.
-- [ ] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package.
+- [x] Delete `Impl`, `pp_impl`, `use_pypulseq`, `use_pulseqzero`, `mr0_mode`, `is_mr0_mode`, `torch_to_numpy`, `convert_tensor` from [src/pulseqzero/\_\_init\_\_.py](src/pulseqzero/__init__.py).
+- [x] Replace with adapter re-exports (see §1 snippet).
+- [x] Replace [src/pulseqzero/adapter/opts.py](src/pulseqzero/adapter/opts.py) body with `from pypulseq import Opts; Opts.default = Opts()`.
+- [x] Grep the adapter for callers of the old `Opts` dataclass — fix any attribute names that differ from `pypulseq.Opts`. (All attributes — `max_grad`, `max_slew`, `grad_raster_time`, `rf_raster_time`, `rf_dead_time`, `rf_ringdown_time`, `adc_dead_time`, `adc_raster_time`, `gamma`, `B0` — are 1:1 with `pypulseq.Opts`.)
+- [ ] Move `_n(x)` (torch-tensor → numpy helper, formerly `convert_tensor`) into the adapter package. *(Deferred until the `to_pypulseq` translator lands in §6.)*
 
 ### Pulse-shape delegation
 
