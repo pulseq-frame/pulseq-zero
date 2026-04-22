@@ -43,7 +43,7 @@ It relies on the following amazing projects:
 
 ## 2. Usage
 
-Pulseq-zero is a drop-in replacement for PyPulseq: any existing PyPulseq script runs under pulseq-zero by swapping the import. The same script can then write `.seq` files *and* be consumed differentiably by MR-zero — no context managers, no mode flags.
+Pulseq-zero is a drop-in replacement for PyPulseq: any existing PyPulseq script runs under pulseq-zero by swapping the import — or, if you don't want to touch the script at all, by installing a two-line `sys.modules` hijack in the driver (see [§2 · Reuse an unmodified PyPulseq script](#reuse-an-unmodified-pypulseq-script)). The same script then writes `.seq` files *and* is consumed differentiably by MR-zero — no context managers, no mode flags.
 
 ```python
 import pulseqzero as pp
@@ -65,6 +65,24 @@ def my_gre_seq(TR, TE):
     # ... more sequence creation ...
     return seq
 ```
+
+### Reuse an unmodified PyPulseq script
+
+You don't have to swap the import at all. If a sequence script still reads `import pypulseq as pp`, a two-line hijack in the driver redirects every `pypulseq` attribute lookup to pulseq-zero:
+
+```python
+import sys
+import pulseqzero
+sys.modules["pypulseq"] = pulseqzero
+
+from my_existing_pypulseq_script import main  # its `import pypulseq as pp` now resolves to pulseqzero
+seq = main()
+seq.to_mr0()   # differentiable — no edits to the sequence script
+```
+
+The [demo/](demo/) workspace uses exactly this pattern: [demo/write_tse.py](demo/write_tse.py) is a near-verbatim copy of the PyPulseq 1.5 upstream TSE example and still imports `pypulseq`; [demo/main.py](demo/main.py) installs the hijack before importing it and gets a differentiable sequence for free.
+
+**Caveats.** The hijack must run before the downstream script is first imported. `from pypulseq.submod import X` (submodule access, e.g. `pypulseq.convert`) will fail unless pulseq-zero mirrors `submod` — top-level `import pypulseq` and `from pypulseq import foo` both work. Calls to entry points pulseq-zero deliberately doesn't wrap (adiabatic pulses, sigpy, SLR, etc.) still raise `NotImplementedError` with a named workaround (see §4).
 
 ### Application
 

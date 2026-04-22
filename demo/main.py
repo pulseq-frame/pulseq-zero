@@ -14,6 +14,10 @@ import MRzeroCore as mr0
 import numpy as np
 import torch
 
+# Force write_tse to use pulseq-zero:
+import pulseqzero
+import sys
+sys.modules["pypulseq"] = pulseqzero
 from write_tse import main as build_tse
 
 

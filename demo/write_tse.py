@@ -1,12 +1,12 @@
 # https://github.com/imr-framework/pypulseq/blob/v1.5.0.post1/examples/scripts/write_tse.py
-# Modified to use pulseqzero instead of pypulseq and to take refoc_flips as optional parameter
+# Modified to take refoc_flips as optional parameter
 
 import math
 import warnings
 
 import numpy as np
 
-import pulseqzero as pp
+import pypulseq as pp
 
 
 def main(
