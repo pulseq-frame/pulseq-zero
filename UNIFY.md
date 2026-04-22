@@ -352,11 +352,11 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### `.seq` export
 
-- [ ] New file [src/pulseqzero/adapter/to_pypulseq.py](src/pulseqzero/adapter/to_pypulseq.py) hosting `_event_to_pp(ev)` for every adapter event type (`Pulse`, `TrapGrad`, `FreeGrad`, `Adc`, `Delay`).
-- [ ] Pulse translator must re-call `_pp_factory` with `_pp_kwargs` **and override `flip_angle` / `phase_offset` / `freq_offset` / `delay` from the live `Pulse`** so post-construction user edits are honored.
-- [ ] Pulse translator fallback for `Pulse` objects without `_pp_factory` (e.g. `make_arbitrary_rf` callers): emit `pypulseq.make_arbitrary_rf(signal=…)` from the stored shape.
-- [ ] Implement `Sequence.to_pypulseq()` on the adapter — lazy (no cache), emit `warnings.warn(...)` on every call so hot-loop usage is visible.
-- [ ] Implement `Sequence.write(name, create_signature=True, remove_duplicates=True)` as a thin wrapper over `self.to_pypulseq().write(...)`. This also fixes the existing signature bug at [sequence.py:197](src/pulseqzero/adapter/sequence.py#L197) (missing defaults).
+- [x] New file [src/pulseqzero/adapter/to_pypulseq.py](src/pulseqzero/adapter/to_pypulseq.py) hosting `event_to_pp(ev, system)` for every adapter event type (`Pulse`, `TrapGrad`, `FreeGrad`, `Adc`, `Delay`).
+- [x] Pulse translator re-calls `_pp_factory` with `_pp_kwargs` and overrides `flip_angle` / `phase_offset` / `freq_offset` / `delay` from the live `Pulse` so post-construction user edits are honored.
+- [x] Pulse translator fallback covers `make_arbitrary_rf` callers too (they share the `_pp_factory` path — `make_arbitrary_rf` stores the raw `signal` in `_pp_kwargs`, so re-calling pypulseq reproduces the same event).
+- [x] Implement `Sequence.to_pypulseq()` on the adapter — lazy (no cache), emit `warnings.warn(...)` on every call so hot-loop usage is visible.
+- [x] Implement `Sequence.write(name, create_signature=True, remove_duplicates=True)` as a thin wrapper over `self.to_pypulseq().write(...)`. Fixes the signature bug at the old [sequence.py:197](src/pulseqzero/adapter/sequence.py#L198) (was missing defaults).
 
 ### Unsupported features
 

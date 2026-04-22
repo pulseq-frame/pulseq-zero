@@ -195,14 +195,30 @@ class Sequence:
     def test_report(self):
         return "No report generated in mr0 mode"
 
-    def write(self, name, create_signature, remove_duplicates):
-        from warnings import warn
-        warn("Called `Sequence.write()` in mr0 mode, which does *not* create a .seq file!")
+    def write(self, name, create_signature=True, remove_duplicates=True):
+        return self.to_pypulseq().write(
+            name,
+            create_signature=create_signature,
+            remove_duplicates=remove_duplicates,
+        )
 
-        if create_signature:
-            return ""
-        else:
-            return None
+    def to_pypulseq(self):
+        import warnings
+        import pypulseq
+        from . import to_pypulseq as _to_pp
+
+        warnings.warn(
+            "pulseqzero.Sequence: translating to PyPulseq for .seq export — "
+            "avoid calling this inside a hot loop.",
+            stacklevel=2,
+        )
+        pp_seq = pypulseq.Sequence(system=self.system)
+        for block in self.blocks:
+            pp_events = [_to_pp.event_to_pp(ev, self.system) for ev in block]
+            pp_seq.add_block(*pp_events)
+        for key, value in self.definitions.items():
+            pp_seq.set_definition(key=key, value=_to_pp._n(value))
+        return pp_seq
 
     # What we do all of this for:
     # To intercept pulseq calls and build an MR-zero sequence from it
