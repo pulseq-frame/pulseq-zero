@@ -23,9 +23,7 @@ N_ECHO = 16
 N_ITER = 30
 TARGET_AMPLITUDE = 0.8
 INITIAL_FLIP_DEG = 160.0
-PHANTOM_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'tests', 'quantalized.npz'
-)
+PHANTOM_PATH = os.path.join(os.path.dirname(__file__), 'brain.npz')
 
 
 def simulate(flips, data):
@@ -40,7 +38,7 @@ def simulate(flips, data):
 
 
 def main():
-    data = mr0.VoxelGridPhantom.load(PHANTOM_PATH).build()
+    data = mr0.VoxelGridPhantom.load(PHANTOM_PATH).slices([36]).build()
 
     # Target image: the full-180° refocusing train.
     with torch.no_grad():
