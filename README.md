@@ -161,11 +161,10 @@ Legend:
 | PyPulseq entry point                   | status | notes |
 | -------------------------------------- | ------ | ----- |
 | `Sequence.__init__`, `add_block`, `set_definition`, `get_definition`, `duration`, `__str__`, `remove_duplicates` | ✅ | adapter-native |
-| `Sequence.plot`                        | ✅ | custom adapter plot; for PyPulseq's plot use `seq.to_pypulseq().plot()` |
 | `Sequence.to_mr0`                      | ✅ | adapter-native, only on pulseq-zero |
 | `Sequence.write`, `to_pypulseq`        | ➡️ | lazy translation, one warning per call |
 | `Sequence.check_timing`                | ⚠️ | stub returns `(True, [])` — real validation happens on `write()` |
-| `Sequence.test_report`, `calculate_pns`, `paper_plot` | ➡️ | forwarded via `to_pypulseq()` |
+| `Sequence.plot`, `test_report`, `calculate_pns`, `paper_plot` | ➡️ | forwarded via `to_pypulseq()` |
 | `calc_SAR`, `make_label`               | stub | no-op |
 | `calc_rf_bandwidth`, `calc_rf_center`  | stub | numeric approximations; pulse shape detail not tracked |
 | `calc_duration`                        | ✅ | differentiable, torch.maximum-based |
