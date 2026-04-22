@@ -133,7 +133,7 @@ class Impl:
         # self.rotate = ad.rotate
         self.scale_grad = ad.scale_grad
         self.split_gradient = ad.split_gradient
-        # self.split_gradient_at = ad.split_gradient_at
+        self.split_gradient_at = ad.split_gradient_at
         self.get_supported_labels = ad.get_supported_labels
         # self.traj_to_grad = ad.traj_to_grad
 

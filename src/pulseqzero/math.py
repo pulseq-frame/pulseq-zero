@@ -69,3 +69,34 @@ def round(x: torch.Tensor) -> torch.Tensor:
         return Round.apply(x)
     except TypeError:
         return torch.as_tensor(np.round(x))
+    
+def interp(x, xp, fp) -> torch.tensor: 
+    """ 
+    Autograd-compatible 1D linear interpolation. 
+    
+    x : tensor of points to interpolate 
+    xp : 1D tensor of known x points (must be sorted) 
+    fp : 1D tensor of known y points 
+    """ 
+    
+    # Ensure xp is sorted 
+    assert torch.all(xp[:-1] <= xp[1:]), "xp must be sorted" 
+    
+    # Expand dimensions for broadcasting 
+    x_exp = x.unsqueeze(-1) # shape (..., 1) 
+    xp_exp = xp.unsqueeze(0) # shape (1, n) 
+    
+    # Find the interval: xp[i] <= x < xp[i+1] 
+    mask = (xp_exp <= x_exp) # boolean mask 
+    idx = mask.sum(dim=-1) - 1 # index of  left point 
+    idx = torch.clamp(idx, 0, len(xp)-2) 
+    
+    x0 = xp[idx] 
+    x1 = xp[idx+1] 
+    y0 = fp[idx] 
+    y1 = fp[idx+1] 
+    
+    slope = (y1 - y0) / (x1 - x0) 
+    y = y0 + slope * (x - x0) 
+    
+    return y

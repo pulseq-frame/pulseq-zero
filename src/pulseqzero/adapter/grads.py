@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from copy import copy, deepcopy
 import torch
 from ..adapter import Opts, calc_duration
-from ..math import ceil
+from ..math import ceil, interp
 
 
 def scale_grad(grad, scale):
@@ -41,6 +41,79 @@ def split_gradient(grad, system):
 
     return ramp_up, flat_top, ramp_down
 
+def split_gradient_at(grad, time_point: float | torch.Tensor, system=None):    
+    if system is None:
+        system = Opts.default
+    
+    if isinstance(time_point, float):
+        time_point = torch.tensor([time_point])
+    else:
+        time_point = time_point.reshape(1)
+        
+    # copy() to emulate pass-by-value; otherwise passed grad is modified
+    grad = deepcopy(grad)   
+    
+    grad_raster_time = system.grad_raster_time
+    
+    time_index = torch.round(time_point / grad_raster_time)
+    # Work around floating-point arithmetic limitation
+    time_point = torch.round(time_index * grad_raster_time * 1e6) / 1e6 # round to 6 decimal places
+    channel = grad.channel
+    
+    # distinguish TrapGrad and FreeGrad
+    if isinstance(grad, TrapGrad):
+        if grad.flat_time == 0:
+            times = torch.tensor([0, grad.rise_time, grad.rise_time + grad.fall_time])
+            amplitudes = torch.tensor([0, grad.amplitude, 0])
+        else:
+            times = torch.tensor([0,
+                                  grad.rise_time,
+                                  grad.rise_time + grad.flat_time,
+                                  grad.rise_time + grad.flat_time + grad.fall_time])
+            amplitudes = torch.tensor([0, grad.amplitude, grad.amplitude, 0])          
+    else: # FreeGrad
+        times = grad.tt
+        amplitudes = grad.waveform
+        
+    # split line is behind the gradient, there is no second gradient to create
+    if time_point >= grad.duration:
+        raise ValueError('Splitting of gradient at time point after the end of gradient.')
+        
+    # split line goes through the delay
+    if time_point < grad.delay:
+        times = torch.concatenate((torch.tensor([0]), grad.delay + times))
+        amplitudes = torch.tensor([0, amplitudes])
+        grad.delay = 0
+    else:
+        time_point -= grad.delay
+
+    # Sample at time point
+    amp_tp = interp(x=time_point, xp=times, fp=amplitudes)
+    t_eps = 1e-10
+    times1 = torch.concatenate((times[torch.where(times < time_point - t_eps)], time_point))
+    amplitudes1 = torch.concatenate((amplitudes[torch.where(times < time_point - t_eps)], amp_tp))
+    times2 = torch.concatenate((time_point, times[times > time_point + t_eps])) - time_point
+    amplitudes2 = torch.concatenate((amp_tp, amplitudes[times > time_point + t_eps]))
+    
+    # recreate gradients as FreeGrad       
+    grad1 = FreeGrad(channel=channel, 
+                     waveform=amplitudes1,
+                     delay=grad.delay,
+                     tt=times1, 
+                     shape_dur=times1[-1],
+                     first_waveform=amplitudes1[0],
+                     last_waveform=amplitudes1[-1])
+                     
+    grad2 = FreeGrad(channel=channel, 
+                     waveform=amplitudes2, 
+                     delay=time_point, 
+                     tt=times2,
+                     shape_dur=times2[-1],
+                     first_waveform=amplitudes2[0],
+                     last_waveform=amplitudes2[-1])
+    
+    
+    return grad1, grad2
 
 def make_trapezoid(
     channel,
