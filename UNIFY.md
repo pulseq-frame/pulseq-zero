@@ -343,12 +343,12 @@ Execute in this order within a single PR. Each item is a concrete code change; c
 
 ### Pulse-shape delegation
 
-- [ ] Rewrite `make_sinc_pulse` in [src/pulseqzero/adapter/pulses.py](src/pulseqzero/adapter/pulses.py) to call `pypulseq.make_sinc_pulse` and wrap the returned objects.
-- [ ] Same for `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf`.
-- [ ] Add `shape: tuple[np.ndarray, np.ndarray]`, `_pp_factory: str`, `_pp_kwargs: dict` fields to the `Pulse` dataclass. Drop the `_generate_shape` closure.
-- [ ] Ensure `_pp_kwargs` holds **only shape-defining fields** (duration, TBW, apodization, center_pos, slice_thickness, …). Mutable fields (`flip_angle`, `phase_offset`, `freq_offset`, `delay`) stay on the `Pulse` as live tensors.
-- [ ] Delete the `return_gz` / `return_gzr` hand-rolled trapezoid math; wrap the `gz`/`gzr` that PyPulseq returns into adapter `TrapGrad`.
-- [ ] Update [src/pulseqzero/adapter/seq_convert.py](src/pulseqzero/adapter/seq_convert.py) `integrate_pulse` to read `rf.shape` instead of calling `rf._generate_shape()`. Keep the `window_area / full_area` area-ratio autograd reconnect.
+- [x] Rewrite `make_sinc_pulse` in [src/pulseqzero/adapter/pulses.py](src/pulseqzero/adapter/pulses.py) to call `pypulseq.make_sinc_pulse` and wrap the returned objects.
+- [x] Same for `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf`.
+- [x] Add `shape: tuple[np.ndarray, np.ndarray]`, `_pp_factory: str`, `_pp_kwargs: dict` fields to the `Pulse` dataclass. Drop the `_generate_shape` closure.
+- [x] Ensure `_pp_kwargs` holds **only shape-defining fields** (duration, TBW, apodization, center_pos, slice_thickness, …). Mutable fields (`flip_angle`, `phase_offset`, `freq_offset`, `delay`) stay on the `Pulse` as live tensors.
+- [x] Delete the `return_gz` / `return_gzr` hand-rolled trapezoid math; wrap the `gz`/`gzr` that PyPulseq returns into adapter `TrapGrad`.
+- [x] Update [src/pulseqzero/adapter/seq_convert.py](src/pulseqzero/adapter/seq_convert.py) `integrate_pulse` to read `rf.shape` instead of calling `rf._generate_shape()`. Keep the `window_area / full_area` area-ratio autograd reconnect. Plot path in [sequence.py](src/pulseqzero/adapter/sequence.py) also reads `event.shape`.
 
 ### `.seq` export
 

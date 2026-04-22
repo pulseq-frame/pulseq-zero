@@ -94,9 +94,10 @@ class Sequence:
                         signal = signal[event.num_samples:]
 
                 elif isinstance(event, Pulse):
-                    time, amp = event._generate_shape()
+                    t_rel, amp = event.shape
+                    time = np.asarray(t_rel) + float(event.delay)
                     rf[0] += (time_factor * (t + time)).tolist() + nan
-                    rf[1] += amp.tolist() + nan
+                    rf[1] += np.asarray(amp).tolist() + nan
                     rf_phase[0].append(time_factor * (t + event.delay + event.shape_dur / 2))
                     rf_phase[1].append(np.angle(np.exp(1j * event.phase_offset)))
                 elif isinstance(event, TrapGrad):

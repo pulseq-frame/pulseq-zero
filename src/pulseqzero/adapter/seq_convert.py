@@ -324,7 +324,9 @@ def integrate(grad, t):
 
 def integrate_pulse(rf: Pulse, t_start, t_end):
     import numpy as np
-    time_shape, amp_shape = rf._generate_shape()
+    t_rel, amp_shape = rf.shape
+    time_shape = np.asarray(t_rel) + float(rf.delay)
+    amp_shape = np.asarray(amp_shape)
     t_start = float(t_start)
     t_end = float(t_end)
 
