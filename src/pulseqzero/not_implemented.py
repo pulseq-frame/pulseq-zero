@@ -83,3 +83,14 @@ make_soft_delay = _unsupported(
     "parameter; for a true soft-delay block in the exported `.seq`, call "
     "`pypulseq.make_soft_delay(...)` on the result of `seq.to_pypulseq()`.",
 )
+
+
+# Silent no-op stubs (README ⚠️ "no-op"). Called by sequence scripts that
+# ignore the return value; must not raise. Promote to real implementations
+# (or to `_unsupported` raisers) when the behavior becomes load-bearing.
+def calc_SAR(file):
+    pass
+
+
+def make_label(label, type, value):
+    pass

@@ -55,7 +55,7 @@ __all__ = [
 ]
 
 # does not need to be differentiable, use directly from pypulseq
-from pypulseq import Opts, eps, calc_adc_segments
+from pypulseq import Opts, eps, calc_adc_segments, get_supported_labels
 
 # not differentiable - some might be replaced with differentiable versions
 from pypulseq import round_half_up
@@ -63,18 +63,19 @@ from pypulseq import round_half_up
 # differentiable math helper functions
 from .math import ceil, floor, round
 
-from .adapter import (
-    Sequence,
+# simple pulseq helper functions made differentiable
+from .helpers import (
     calc_duration,
     calc_rf_bandwidth,
     calc_rf_center,
-    calc_SAR,
+)
+
+from .adapter import (
+    Sequence,
     make_adc,
     make_delay,
     make_trigger,
     make_digital_output_pulse,
-    make_label,
-    get_supported_labels,
     make_trapezoid,
     make_arbitrary_grad,
     make_extended_trapezoid,
@@ -105,6 +106,9 @@ from .not_implemented import (
     enable_trace,
     disable_trace,
     make_soft_delay,
+    # TODO: these functions are just silent no-ops - change?
+    calc_SAR,
+    make_label,
 )
 
 # Re-export the shim-generation function if Martin's pTx pulseq is installed
