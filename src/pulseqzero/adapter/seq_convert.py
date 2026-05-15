@@ -1,6 +1,6 @@
 import torch
 import MRzeroCore as mr0
-from ..adapter import calc_duration
+from .. import calc_duration
 from ..adapter.pulses import Pulse
 from ..adapter.adc import Adc
 from ..adapter.delay import Delay

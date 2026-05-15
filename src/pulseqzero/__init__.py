@@ -70,24 +70,25 @@ from .helpers import (
     calc_rf_center,
 )
 
-from .adapter import (
-    Sequence,
-    make_adc,
-    make_delay,
-    make_trigger,
-    make_digital_output_pulse,
-    make_trapezoid,
-    make_arbitrary_grad,
-    make_extended_trapezoid,
-    make_extended_trapezoid_area,
+# the "meat" of pulseq-zero: differentiable impls of seq building funcs
+from .adapter.sequence import Sequence
+from .adapter.adc import make_adc
+from .adapter.delay import make_delay, make_trigger, make_digital_output_pulse
+from .adapter.extended_trap_grad import make_extended_trapezoid_area
+from .adapter.grads import (
     scale_grad,
     split_gradient,
     split_gradient_at,
     add_gradients,
-    make_sinc_pulse,
-    make_gauss_pulse,
-    make_block_pulse,
+    make_trapezoid,
+    make_arbitrary_grad,
+    make_extended_trapezoid,
+)
+from .adapter.pulses import (
     make_arbitrary_rf,
+    make_block_pulse,
+    make_gauss_pulse,
+    make_sinc_pulse,
 )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.

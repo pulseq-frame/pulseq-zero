@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from ..adapter import Opts
+from .. import Opts
 
 
 def make_adc(

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from ..adapter import Opts
+from .. import Opts
 from .grads import make_extended_trapezoid
 
 

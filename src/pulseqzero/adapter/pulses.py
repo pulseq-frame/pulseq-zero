@@ -2,7 +2,9 @@ from dataclasses import dataclass
 import numpy as np
 import pypulseq
 
-from ..adapter import Opts, make_delay, calc_duration
+from .. import Opts
+from ..helpers import calc_duration
+from ..adapter.delay import make_delay
 from ..adapter.grads import TrapGrad
 
 

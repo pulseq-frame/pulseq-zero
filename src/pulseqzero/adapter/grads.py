@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from copy import copy, deepcopy
 import torch
-from ..adapter import Opts, calc_duration
+from .. import Opts, calc_duration
 from ..math import ceil, interp
 
 

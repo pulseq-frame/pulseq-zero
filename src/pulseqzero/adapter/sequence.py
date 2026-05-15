@@ -1,7 +1,7 @@
 from copy import copy, deepcopy
 import MRzeroCore
 
-from ..adapter import calc_duration, Opts
+from .. import calc_duration, Opts
 from . import seq_convert
 
 
