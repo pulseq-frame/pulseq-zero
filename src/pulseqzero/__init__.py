@@ -9,59 +9,58 @@ gradient descent optimization with a seq script in the loop becomes possible.
 """
 
 __all__ = [
-    "ceil",
-    "floor",
-    "round",
     "Opts",
     "Sequence",
+    "SigpyPulseOpts",
+    "add_gradients",
+    "align",
+    "calc_SAR",
+    "calc_adc_segments",
     "calc_duration",
+    "calc_ramp",
     "calc_rf_bandwidth",
     "calc_rf_center",
-    "calc_SAR",
-    "make_adc",
-    "make_delay",
-    "make_trigger",
-    "make_digital_output_pulse",
-    "make_label",
+    "ceil",
+    "disable_trace",
+    "enable_trace",
+    "eps",
+    "floor",
     "get_supported_labels",
-    "make_trapezoid",
+    "get_supported_rf_uses",
+    "make_adc",
+    "make_adiabatic_pulse",
     "make_arbitrary_grad",
+    "make_arbitrary_rf",
+    "make_block_pulse",
+    "make_delay",
+    "make_digital_output_pulse",
     "make_extended_trapezoid",
     "make_extended_trapezoid_area",
-    "scale_grad",
-    "split_gradient",
-    "split_gradient_at",
-    "add_gradients",
-    "make_sinc_pulse",
     "make_gauss_pulse",
-    "make_block_pulse",
-    "make_arbitrary_rf",
-    "make_adiabatic_pulse",
-    "sigpy_n_seq",
+    "make_label",
+    "make_sinc_pulse",
     "make_slr",
     "make_sms",
-    "SigpyPulseOpts",
-    "align",
-    "calc_ramp",
-    "rotate",
-    "points_to_waveform",
-    "traj_to_grad",
-    "round_half_up",
-    "enable_trace",
-    "disable_trace",
     "make_soft_delay",
-    "eps",
-    "calc_adc_segments",
+    "make_trapezoid",
+    "make_trigger",
+    "points_to_waveform",
+    "rotate",
+    "round",
+    "round_half_up",
+    "scale_grad",
+    "sigpy_n_seq",
+    "split_gradient",
+    "split_gradient_at",
+    "traj_to_grad",
 ]
 
 # does not need to be differentiable, use directly from pypulseq
 from pypulseq import Opts, eps, calc_adc_segments, get_supported_labels
-
-# not differentiable - some might be replaced with differentiable versions
-from pypulseq import round_half_up
+from pypulseq.supported_labels_rf_use import get_supported_rf_uses
 
 # differentiable math helper functions
-from .math import ceil, floor, round
+from .math import ceil, floor, round, round_half_up
 
 # simple pulseq helper functions made differentiable
 from .helpers import (

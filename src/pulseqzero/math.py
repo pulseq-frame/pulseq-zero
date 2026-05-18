@@ -40,8 +40,8 @@ class Round(torch.autograd.Function):
         pass
 
     @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output
+    def backward(ctx, *grad_outputs):
+        return grad_outputs
 
 
 def ceil(x: torch.Tensor) -> torch.Tensor:
@@ -70,9 +70,8 @@ def round(x: torch.Tensor) -> torch.Tensor:
     except TypeError:
         return torch.as_tensor(np.round(x))
     
-def interp(x, xp, fp) -> torch.tensor: 
-    """ 
-    Autograd-compatible 1D linear interpolation. 
+def interp(x, xp, fp) -> torch.Tensor: 
+    """ Autograd-compatible 1D linear interpolation. 
     
     x : tensor of points to interpolate 
     xp : 1D tensor of known x points (must be sorted) 
@@ -100,3 +99,12 @@ def interp(x, xp, fp) -> torch.tensor:
     y = y0 + slope * (x - x0) 
     
     return y
+
+def round_half_up(n, decimals=0):
+    """Differentiable version of rouding (avoiding banker's rounding).
+    
+    BUG: will strip signs - same as pypulseq impl!
+    """
+    # Pass trhough on backwards pass - using pulseq-zeros floor impl
+    multiplier = 10 ** decimals
+    return floor(abs(n) * multiplier + 0.5) / multiplier
