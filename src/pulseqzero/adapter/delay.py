@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from ..events import Delay
 
 
 def make_delay(d):
@@ -11,12 +11,3 @@ def make_trigger(channel, delay=0, duration=0, system=None):
 
 def make_digital_output_pulse(channel, delay=0, duration=None, system=None):
     return Delay(delay)
-
-
-@dataclass
-class Delay:
-    delay: ...
-
-    @property
-    def duration(self):
-        return self.delay

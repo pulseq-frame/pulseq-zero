@@ -1,10 +1,7 @@
 import torch
 import MRzeroCore as mr0
 from .. import calc_duration
-from ..adapter.pulses import Pulse
-from ..adapter.adc import Adc
-from ..adapter.delay import Delay
-from ..adapter.grads import TrapGrad, FreeGrad
+from ..events import Adc, Delay, FreeGrad, Pulse, TrapGrad
 
 def convert_tensors_to_float32(obj):
     if hasattr(obj, '__dataclass_fields__'):

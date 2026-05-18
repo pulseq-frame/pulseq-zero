@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 from .. import Opts
+from ..events import Adc
 
 
 def make_adc(
@@ -22,16 +22,3 @@ def make_adc(
         delay = system.adc_dead_time
 
     return Adc(num_samples, dwell, delay, freq_offset, phase_offset)
-
-
-@dataclass
-class Adc:
-    num_samples: ...
-    dwell: ...
-    delay: ...
-    freq_offset: ...  # ignored by sim
-    phase_offset: ...
-
-    @property
-    def duration(self):
-        return self.delay + self.num_samples * self.dwell

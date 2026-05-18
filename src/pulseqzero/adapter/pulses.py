@@ -1,11 +1,10 @@
-from dataclasses import dataclass
 import numpy as np
 import pypulseq
 
 from .. import Opts
+from ..events import Pulse, TrapGrad
 from ..helpers import calc_duration
 from ..adapter.delay import make_delay
-from ..adapter.grads import TrapGrad
 
 
 def _n(x):
@@ -304,31 +303,3 @@ def make_arbitrary_rf(
         ret_val = (*ret_val, d) if isinstance(ret_val, tuple) else (ret_val, d)
 
     return ret_val
-
-
-@dataclass
-class Pulse:
-    flip_angle: ...
-    shape_dur: ...
-    freq_offset: ...
-    phase_offset: ...
-    delay: ...
-    ringdown_time: ...  # important for duration
-    shim_array: ...  # requires rfshim pulseq in pulseq mode
-
-    # (t, signal) in pulse-local time, numpy arrays; already flip-angle scaled
-    # by the PyPulseq factory that produced it.
-    shape: ...
-
-    use: str
-
-    # Factory name + shape-defining kwargs, used by to_pypulseq() to re-emit
-    # a native pypulseq event. Mutable fields (flip_angle / phase_offset /
-    # freq_offset / delay) are re-read from the live Pulse at write time, so
-    # post-construction edits by the user are honored.
-    _pp_factory: str = None
-    _pp_kwargs: dict = None
-
-    @property
-    def duration(self):
-        return self.delay + self.shape_dur + self.ringdown_time

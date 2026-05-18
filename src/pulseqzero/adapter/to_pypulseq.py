@@ -3,10 +3,7 @@ import inspect
 import numpy as np
 import pypulseq
 
-from .adc import Adc
-from .delay import Delay
-from .grads import FreeGrad, TrapGrad
-from .pulses import Pulse
+from ..events import Adc, Delay, FreeGrad, Pulse, TrapGrad
 
 
 def _n(x):

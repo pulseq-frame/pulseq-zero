@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 from copy import copy, deepcopy
 import torch
 from .. import Opts, calc_duration
+from ..events import TrapGrad, FreeGrad
 from ..math import ceil, interp
 
 
@@ -229,36 +229,6 @@ def calc_params_for_area(area, max_slew, max_grad, grad_raster_time):
     return amplitude, rise_time, flat_time, fall_time
 
 
-@dataclass
-class TrapGrad:
-    channel: ...
-    amplitude: ...
-    rise_time: ...
-    flat_time: ...
-    fall_time: ...
-    delay: ...
-
-    @property
-    def area(self):
-        return self.amplitude * (self.rise_time / 2 + self.flat_time + self.fall_time / 2)
-
-    @property
-    def flat_area(self):
-        return self.amplitude * self.flat_time
-
-    @property
-    def duration(self):
-        return self.delay + self.rise_time + self.flat_time + self.fall_time
-    
-    @property
-    def first(self):
-        return 0.0
-    
-    @property
-    def last(self):
-        return 0.0
-
-
 def make_arbitrary_grad(
     channel,
     waveform,
@@ -290,36 +260,6 @@ def make_arbitrary_grad(
         first, 
         last
     )
-
-
-@dataclass
-class FreeGrad:
-    channel: ...
-    waveform: ...
-    delay: ...
-    tt: ...
-    shape_dur: ...
-    first_waveform: ...
-    last_waveform: ...
-
-    @property
-    def duration(self):
-        return self.delay + self.shape_dur
-
-    @property
-    def area(self):
-        return 0.5 * (
-            (self.tt[1:] - self.tt[:-1]) *
-            (self.waveform[1:] + self.waveform[:-1])
-        ).sum()
-    
-    @property
-    def first(self):
-        return self.first_waveform 
-    
-    @property
-    def last(self):
-        return self.last_waveform 
 
 
 def  make_extended_trapezoid(
