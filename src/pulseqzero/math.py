@@ -12,8 +12,8 @@ class Ceil(torch.autograd.Function):
         pass
 
     @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output
+    def backward(ctx, *grad_outputs):
+        return grad_outputs
 
 
 class Floor(torch.autograd.Function):
@@ -26,8 +26,8 @@ class Floor(torch.autograd.Function):
         pass
 
     @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output
+    def backward(ctx, *grad_outputs):
+        return grad_outputs
 
 
 class Round(torch.autograd.Function):

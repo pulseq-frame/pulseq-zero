@@ -114,7 +114,7 @@ from .not_implemented import (
 
 # Re-export the shim-generation function if Martin's pTx pulseq is installed
 try:
-    from pypulseq import set_tx_mode as set_tx_mode
+    from pypulseq import set_tx_mode as set_tx_mode  # ty: ignore[unresolved-import]
 except ImportError:
     pass
 else:
