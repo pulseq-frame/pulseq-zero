@@ -51,7 +51,7 @@ __all__ = [
     "scale_grad",
     "sigpy_n_seq",
     "split_gradient",
-    "split_gradient_at",
+    # "split_gradient_at",
     "traj_to_grad",
 ]
 
@@ -70,6 +70,8 @@ from .helpers import (
 )
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
+from .wrapper.make_pulse import make_sinc_pulse
+
 from .adapter.sequence import Sequence
 from .adapter.adc import make_adc
 from .adapter.delay import make_delay, make_trigger, make_digital_output_pulse
@@ -77,7 +79,7 @@ from .adapter.extended_trap_grad import make_extended_trapezoid_area
 from .adapter.grads import (
     scale_grad,
     split_gradient,
-    split_gradient_at,
+    # split_gradient_at,
     add_gradients,
     make_trapezoid,
     make_arbitrary_grad,
@@ -86,8 +88,7 @@ from .adapter.grads import (
 from .adapter.pulses import (
     make_arbitrary_rf,
     make_block_pulse,
-    make_gauss_pulse,
-    make_sinc_pulse,
+    make_gauss_pulse
 )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
@@ -106,7 +107,6 @@ from .not_implemented import (
     enable_trace,
     disable_trace,
     make_soft_delay,
-    # TODO: these functions are just silent no-ops - change?
     calc_SAR,
     make_label,
 )
@@ -115,6 +115,7 @@ from .not_implemented import (
 try:
     from pypulseq import set_tx_mode as set_tx_mode  # ty: ignore[unresolved-import]
 except ImportError:
-    pass
+    FREUDENSPRUNG_PTX = False
 else:
+    FREUDENSPRUNG_PTX = True
     __all__.append("set_tx_mode")

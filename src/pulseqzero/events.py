@@ -14,38 +14,35 @@ This file contains those dataclasses that are the internal pulseq-zero sequence.
 """
 
 from __future__ import annotations
+from types import SimpleNamespace
 from dataclasses import dataclass
 from typing import Optional
+from collections.abc import Sequence, Callable
 import numpy as np
 import torch
 
 
 # A field that may carry a live torch tensor (differentiable) or a plain number.
 Scalar = torch.Tensor | float
+# Same but for array-likes (used for shim arrays).
+Array = torch.Tensor | np.ndarray | Sequence[Scalar]
 
 
 @dataclass
-class Pulse:
+class RfPulse:
     flip_angle: Scalar
-    shape_dur: float
     freq_offset: Scalar
     phase_offset: Scalar
     delay: Scalar
-    ringdown_time: float  # important for duration
-    shim_array: Optional[np.ndarray]  # requires rfshim pulseq in pulseq mode
-
-    # (t, signal) in pulse-local time, numpy arrays; already flip-angle scaled
-    # by the PyPulseq factory that produced it.
-    shape: tuple[np.ndarray, np.ndarray]
-
+    shape_dur: Scalar
+    ringdown_time: float  # set via system param, do not modify afterwards
     use: str
+    shim_array: Optional[Array]  # Martins pTx extension
 
-    # Factory name + shape-defining kwargs, used by to_pypulseq() to re-emit
-    # a native pypulseq event. Mutable fields (flip_angle / phase_offset /
-    # freq_offset / delay) are re-read from the live Pulse at write time, so
-    # post-construction edits by the user are honored.
-    _pp_factory: Optional[str] = None
-    _pp_kwargs: Optional[dict] = None
+    # Reconstruct pypulseq object from self - additional params stored in lambda.
+    _pp_factory: Callable[
+        [RfPulse], SimpleNamespace | tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]
+    ]
 
     @property
     def duration(self) -> Scalar:
@@ -63,7 +60,9 @@ class TrapGrad:
 
     @property
     def area(self) -> Scalar:
-        return self.amplitude * (self.rise_time / 2 + self.flat_time + self.fall_time / 2)
+        return self.amplitude * (
+            self.rise_time / 2 + self.flat_time + self.fall_time / 2
+        )
 
     @property
     def flat_area(self) -> Scalar:
@@ -98,10 +97,12 @@ class FreeGrad:
 
     @property
     def area(self) -> Scalar:
-        return 0.5 * (
-            (self.tt[1:] - self.tt[:-1]) *
-            (self.waveform[1:] + self.waveform[:-1])
-        ).sum()
+        return (
+            0.5
+            * (
+                (self.tt[1:] - self.tt[:-1]) * (self.waveform[1:] + self.waveform[:-1])
+            ).sum()
+        )
 
     @property
     def first(self) -> Scalar:
