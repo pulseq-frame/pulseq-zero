@@ -43,6 +43,7 @@ class RfPulse:
     phase_offset: Scalar
     delay: Scalar
     shape_dur: Scalar
+    center: Scalar
     ringdown_time: float  # set via system param, do not modify afterwards
     use: str
     shim_array: Optional[Array]  # Martins pTx extension

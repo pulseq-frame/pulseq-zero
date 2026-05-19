@@ -77,7 +77,7 @@ Additional information, to be integrated into the list below:
 - [ ] calc_duration
 - [ ] calc_ramp
 - [ ] calc_rf_bandwidth
-- [ ] calc_rf_center
+- [x] calc_rf_center                    *helpers.py*
 - [ ] check_timing
 - [ ] compress_shape
 - [ ] convert

@@ -7,7 +7,6 @@ import torch
 
 from .. import get_supported_rf_uses, Opts, FREUDENSPRUNG_PTX
 from ..events import RfPulse, TrapGrad, Scalar, Array
-from ..helpers import _calc_shape_center
 from .make_grad import make_trapezoid
 from . import _n
 
@@ -53,6 +52,7 @@ def make_block_pulse(
         phase_offset=phase_offset,
         delay=delay,
         shape_dur=duration,
+        center=duration / 2,
         ringdown_time=system.rf_ringdown_time,
         use=use,
         shim_array=shim_array,
@@ -120,6 +120,7 @@ def make_gauss_pulse(
         phase_offset=phase_offset,
         delay=delay,
         shape_dur=duration,
+        center=duration * center_pos,
         ringdown_time=system.rf_ringdown_time,
         use=use,
         shim_array=shim_array,
@@ -227,6 +228,7 @@ def make_sinc_pulse(
         phase_offset=phase_offset,
         delay=delay,
         shape_dur=duration,
+        center=duration * center_pos,
         ringdown_time=system.rf_ringdown_time,
         use=use,
         shim_array=shim_array,
@@ -341,7 +343,7 @@ def make_arbitrary_rf(
         # TODO: improve performance by inlining the function and optimizing away
         # the interpolation over the completely regular time array
         time = (np.arange(1, len(signal) + 1) - 0.5) * dwell
-        center = _calc_shape_center(signal, time)[0]
+        center = _calc_shape_center(signal, time)
 
     rf = RfPulse(
         flip_angle=flip_angle,
@@ -349,6 +351,7 @@ def make_arbitrary_rf(
         phase_offset=phase_offset,
         delay=delay,
         shape_dur=duration,
+        center=center,
         ringdown_time=system.rf_ringdown_time,
         use=use,
         shim_array=shim_array,
@@ -407,3 +410,21 @@ def make_arbitrary_rf(
             rf.delay = gz.rise_time + gz.delay
 
         return rf, gz
+
+
+# ==============================================================================
+# Helper to compute the center of arbitrary pulses
+# ==============================================================================
+
+def _calc_shape_center(signal: Array, time: Array) -> Scalar:
+    """Detect the excitation peak; if i is a plateau take its center"""
+    if isinstance(signal, torch.Tensor):
+        rf_max = torch.max(torch.abs(signal))
+        i_peak = torch.where(torch.abs(signal) >= rf_max * 0.99999)[0]
+        time_center = cast(Scalar, (time[i_peak[0]] + time[i_peak[-1]]) / 2)
+    else:
+        rf_max = np.max(np.abs(signal))
+        i_peak = np.where(np.abs(signal) >= rf_max * 0.99999)[0]
+        time_center = (time[i_peak[0]] + time[i_peak[-1]]) / 2
+
+    return time_center
