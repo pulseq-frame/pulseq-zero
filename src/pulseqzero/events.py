@@ -17,7 +17,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from dataclasses import dataclass
 from typing import Optional
-from collections.abc import Sequence, Callable
+from collections.abc import Callable
 import numpy as np
 import torch
 import pypulseq as pp
@@ -27,7 +27,13 @@ from .wrapper import _n
 # A field that may carry a live torch tensor (differentiable) or a plain number.
 Scalar = torch.Tensor | float
 # Same but for array-likes (used for shim arrays).
-Array = torch.Tensor | np.ndarray | Sequence[Scalar]
+Array = torch.Tensor | np.ndarray
+
+# Return type of pulseq pulse generating functions with optional slice selection
+Rf = SimpleNamespace
+RfGz = tuple[SimpleNamespace, SimpleNamespace]
+RfGzGzr = tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]
+MakeRfRetType = Rf | RfGz | RfGzGzr
 
 
 @dataclass
@@ -42,15 +48,13 @@ class RfPulse:
     shim_array: Optional[Array]  # Martins pTx extension
 
     # Reconstruct pypulseq object from self - additional params stored in lambda.
-    _pp_factory: Callable[
-        [RfPulse], SimpleNamespace | tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]
-    ]
+    _pp_factory: Callable[[RfPulse], MakeRfRetType]
 
     @property
     def duration(self) -> Scalar:
         return self.delay + self.shape_dur + self.ringdown_time
-    
-    def to_pulseq(self) -> SimpleNamespace | tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]:
+
+    def to_pulseq(self) -> MakeRfRetType:
         return self._pp_factory(self)
 
 
@@ -92,7 +96,7 @@ class TrapGrad:
             rise_time=_n(self.rise_time),
             flat_time=_n(self.flat_time),
             fall_time=_n(self.fall_time),
-            delay=_n(self.delay)
+            delay=_n(self.delay),
         )
 
 

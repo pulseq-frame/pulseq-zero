@@ -80,7 +80,7 @@ from .helpers import (
 )
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
-from .wrapper.make_pulse import make_sinc_pulse
+from .wrapper.make_pulse import make_block_pulse, make_gauss_pulse, make_sinc_pulse, make_arbitrary_rf
 from .wrapper.make_grad import make_trapezoid
 
 from .adapter.sequence import Sequence
@@ -94,11 +94,6 @@ from .adapter.grads import (
     add_gradients,
     make_arbitrary_grad,
     make_extended_trapezoid,
-)
-from .adapter.pulses import (
-    make_arbitrary_rf,
-    make_block_pulse,
-    make_gauss_pulse
 )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
