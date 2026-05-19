@@ -20,6 +20,8 @@ from typing import Optional
 from collections.abc import Sequence, Callable
 import numpy as np
 import torch
+import pypulseq as pp
+from .wrapper import _n
 
 
 # A field that may carry a live torch tensor (differentiable) or a plain number.
@@ -47,6 +49,9 @@ class RfPulse:
     @property
     def duration(self) -> Scalar:
         return self.delay + self.shape_dur + self.ringdown_time
+    
+    def to_pulseq(self) -> SimpleNamespace | tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]:
+        return self._pp_factory(self)
 
 
 @dataclass
@@ -79,6 +84,16 @@ class TrapGrad:
     @property
     def last(self) -> float:
         return 0.0
+
+    def to_pulseq(self) -> SimpleNamespace:
+        return pp.make_trapezoid(
+            channel=self.channel,
+            amplitude=_n(self.amplitude),
+            rise_time=_n(self.rise_time),
+            flat_time=_n(self.flat_time),
+            fall_time=_n(self.fall_time),
+            delay=_n(self.delay)
+        )
 
 
 @dataclass

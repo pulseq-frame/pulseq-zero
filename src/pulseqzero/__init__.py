@@ -1,4 +1,4 @@
-"""TODO: write the module docstring.
+"""Temporary pulseq-zero description.
 
 This is pulseq-zero, a wrapper around pypulseq. When swapping imports, sequence
 scripts should continue to run as they did under pypulseq. But the underlying
@@ -7,6 +7,7 @@ allows to plot and write sequences as before but also to convert to MR-zero
 while passing through torch tensors and their backpropagation graph. This way,
 gradient descent optimization with a seq script in the loop becomes possible.
 """
+# TODO: write the module docstring.
 
 __all__ = [
     "Opts",
@@ -55,6 +56,15 @@ __all__ = [
     "traj_to_grad",
 ]
 
+# Re-export the shim-generation function if Martin's pTx pulseq is installed
+try:
+    from pypulseq import set_tx_mode as set_tx_mode  # ty: ignore[unresolved-import]
+except ImportError:
+    FREUDENSPRUNG_PTX = False
+else:
+    FREUDENSPRUNG_PTX = True
+    __all__.append("set_tx_mode")
+
 # does not need to be differentiable, use directly from pypulseq
 from pypulseq import Opts, eps, calc_adc_segments, get_supported_labels
 from pypulseq.supported_labels_rf_use import get_supported_rf_uses
@@ -71,6 +81,7 @@ from .helpers import (
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
 from .wrapper.make_pulse import make_sinc_pulse
+from .wrapper.make_grad import make_trapezoid
 
 from .adapter.sequence import Sequence
 from .adapter.adc import make_adc
@@ -81,7 +92,6 @@ from .adapter.grads import (
     split_gradient,
     # split_gradient_at,
     add_gradients,
-    make_trapezoid,
     make_arbitrary_grad,
     make_extended_trapezoid,
 )
@@ -110,12 +120,3 @@ from .not_implemented import (
     calc_SAR,
     make_label,
 )
-
-# Re-export the shim-generation function if Martin's pTx pulseq is installed
-try:
-    from pypulseq import set_tx_mode as set_tx_mode  # ty: ignore[unresolved-import]
-except ImportError:
-    FREUDENSPRUNG_PTX = False
-else:
-    FREUDENSPRUNG_PTX = True
-    __all__.append("set_tx_mode")

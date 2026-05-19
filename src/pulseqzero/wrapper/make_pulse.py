@@ -3,7 +3,8 @@ import pypulseq as pp
 from warnings import warn
 from copy import copy
 
-from .. import get_supported_rf_uses, make_trapezoid, Opts, FREUDENSPRUNG_PTX
+from .. import get_supported_rf_uses, Opts, FREUDENSPRUNG_PTX
+from .make_grad import make_trapezoid
 from ..events import RfPulse, TrapGrad, Scalar, Array
 from . import _n
 
@@ -66,7 +67,7 @@ def make_sinc_pulse(
             flip_angle=_n(self.flip_angle),
             apodization=_n(apodization),
             delay=_n(self.delay),
-            duration=_n(self.duration),
+            duration=_n(self.shape_dur),
             dwell=_n(dwell),
             center_pos=_n(center_pos),
             freq_offset=_n(self.freq_offset),

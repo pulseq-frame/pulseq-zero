@@ -99,10 +99,10 @@ Additional information, to be integrated into the list below:
 - [ ] make_extended_trapezoid_area     (copied from pypulseq, not differentiable)
 - [ ] make_gauss_pulse                 (silent no-op stub)
 - [ ] make_label
-- [ ] make_sinc_pulse
+- [x] make_sinc_pulse                   *make_pulse.py*
 - [-] make_slr                         **no sigpy support**
 - [-] make_sms                         **no sigpy support**
-- [ ] make_trapezoid
+- [x] make_trapezoid                    *make_grad.py*
 - [ ] make_trigger
 - [ ] points_to_waveform
 - [ ] rotate

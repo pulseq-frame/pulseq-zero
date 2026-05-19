@@ -2,7 +2,7 @@ import numpy as np
 import pypulseq
 
 from .. import Opts
-from ..events import Pulse, TrapGrad
+from ..events import RfPulse, TrapGrad
 from ..helpers import calc_duration
 from ..adapter.delay import make_delay
 
@@ -27,7 +27,7 @@ def _wrap_trap(pp_grad):
 
 def _build_pulse(pp_rf, *, flip_angle, freq_offset, phase_offset, delay,
                  shim_array, use, factory_name, pp_kwargs):
-    return Pulse(
+    return RfPulse(
         flip_angle=flip_angle,
         shape_dur=float(pp_rf.shape_dur),
         freq_offset=freq_offset,

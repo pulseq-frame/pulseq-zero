@@ -3,7 +3,7 @@ import inspect
 import numpy as np
 import pypulseq
 
-from ..events import Adc, Delay, FreeGrad, Pulse, TrapGrad
+from ..events import Adc, Delay, FreeGrad, RfPulse, TrapGrad
 
 
 def _n(x):
@@ -18,8 +18,10 @@ def _n(x):
     return arr
 
 
-def _translate_pulse(ev: Pulse, system):
+def _translate_pulse(ev: RfPulse, system):
     """Re-create a pulse stored as a pulseq-zero object with pypulseq."""
+    return ev.to_pulseq()
+
     factory_name = ev._pp_factory
     kwargs = dict(ev._pp_kwargs or {})
     kwargs["flip_angle"] = _n(ev.flip_angle)
@@ -45,6 +47,8 @@ def _translate_pulse(ev: Pulse, system):
 
 def _translate_trap(ev: TrapGrad, system):
     """Re-create a trap gradient stored as pulseq-zero object with pypulseq."""
+    return ev.to_pulseq()
+
     return pypulseq.make_trapezoid(
         channel=ev.channel,
         amplitude=_n(ev.amplitude),
@@ -105,7 +109,7 @@ def _translate_delay(ev: Delay, system):
 
 def event_to_pp(ev, system):
     """Re-create an event stored as pulseq-zero object with pypulseq."""
-    if isinstance(ev, Pulse):
+    if isinstance(ev, RfPulse):
         return _translate_pulse(ev, system)
     if isinstance(ev, TrapGrad):
         return _translate_trap(ev, system)

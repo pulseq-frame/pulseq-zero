@@ -1,7 +1,7 @@
 import torch
 import MRzeroCore as mr0
 from .. import calc_duration
-from ..events import Adc, Delay, FreeGrad, Pulse, TrapGrad
+from ..events import Adc, Delay, FreeGrad, RfPulse, TrapGrad
 
 def convert_tensors_to_float32(obj):
     if hasattr(obj, '__dataclass_fields__'):
@@ -29,7 +29,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
             if isinstance(ev, Adc):
                 assert adc is None
                 adc = ev
-            if isinstance(ev, Pulse):
+            if isinstance(ev, RfPulse):
                 assert rf is None
                 rf = ev
             if isinstance(ev, (TrapGrad, FreeGrad)):
@@ -319,7 +319,7 @@ def integrate(grad, t):
         raise NotImplementedError
 
 
-def integrate_pulse(rf: Pulse, t_start, t_end):
+def integrate_pulse(rf: RfPulse, t_start, t_end):
     import numpy as np
     t_rel, amp_shape = rf.shape
     time_shape = np.asarray(t_rel) + float(rf.delay)
