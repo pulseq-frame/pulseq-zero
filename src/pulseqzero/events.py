@@ -32,6 +32,17 @@ Array = torch.Tensor | np.ndarray
 
 
 @dataclass
+class Label:
+    label: str
+    inc: bool
+    value: int
+
+    def to_pulseq(self, system: Opts):
+        typ = "INC" if self.inc else "SET"
+        pp.make_label(self.label, typ, self.value)
+
+
+@dataclass
 class RfPulse:
     flip_angle: Scalar
     freq_offset: Scalar

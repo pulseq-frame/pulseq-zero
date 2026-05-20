@@ -93,7 +93,7 @@ Additional information, to be integrated into the list below:
 - [ ] make_extended_trapezoid
 - [ ] make_extended_trapezoid_area     (copied from pypulseq, not differentiable)
 - [x] make_gauss_pulse                  *make_pulse.py*
-- [ ] make_label
+- [x] make_label                        *make_basic.py*
 - [x] make_sinc_pulse                   *make_pulse.py*
 - [-] make_slr                         **no sigpy support**
 - [-] make_sms                         **no sigpy support**
