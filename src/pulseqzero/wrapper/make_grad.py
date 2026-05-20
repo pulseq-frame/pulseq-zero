@@ -1,6 +1,8 @@
-from typing import Union, cast
+import torch
+from typing import Union, cast, Optional
 from pypulseq import Opts
-from ..events import TrapGrad, Scalar
+from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
+import numpy as np
 
 
 def make_trapezoid(
@@ -72,7 +74,9 @@ def make_trapezoid(
     # calc_path == "flat_area"
     elif area is None and flat_area is not None and amplitude is None:
         if flat_time is None:
-            raise ValueError("When `flat_area` is provided, `flat_time` must be as well.")
+            raise ValueError(
+                "When `flat_area` is provided, `flat_time` must be as well."
+            )
         amplitude2 = flat_area / flat_time
 
     # calc_path == "amplitude"
@@ -93,7 +97,7 @@ def make_trapezoid(
         raise NotImplementedError(
             "Flat Area + Amplitude input pair is not implemented yet."
         )
-        
+
     else:
         raise ValueError("Must supply either 'area', 'flat_area' or 'amplitude'.")
 
@@ -130,3 +134,94 @@ def calculate_shortest_params_for_area(
     fall_time = rise_time
 
     return amplitude, rise_time, flat_time, fall_time
+
+
+def make_arbitrary_grad(
+    channel: str,
+    waveform: np.ndarray,
+    first: Union[float, None] = None,
+    last: Union[float, None] = None,
+    delay: float = 0.0,
+    max_grad: Union[float, None] = None,
+    max_slew: Union[float, None] = None,
+    system: Union[Opts, None] = None,
+    oversampling: bool = False,
+) -> ArbitraryGrad:
+    if system is None:
+        system = Opts.default
+
+    if channel not in ["x", "y", "z"]:
+        raise ValueError(
+            f"Invalid channel. Must be one of x, y or z. Passed: {channel}"
+        )
+    if oversampling and len(waveform) % 2 == 0:
+        raise ValueError(
+            "When oversampling is active, waveform must have an odd number of samples"
+        )
+
+    def extrap(a, b):
+        if oversampling:
+            return 2 * a - b
+        else:
+            return 0.5 * (3 * a - b)
+
+    if first is None:
+        first = extrap(waveform[0], waveform[1])
+    if last is None:
+        last = extrap(waveform[-1], waveform[-2])
+
+    return ArbitraryGrad(
+        channel=channel,
+        waveform=waveform,
+        delay=delay,
+        first=first,
+        last=last,
+        oversampling=oversampling,
+        _grad_raster=system.grad_raster_time,
+    )
+
+
+def make_extended_trapezoid(
+    channel: str,
+    amplitudes: Optional[Array] = None,
+    convert_to_arbitrary: bool = False,
+    max_grad: Scalar = 0.0,
+    max_slew: Scalar = 0.0,
+    skip_check: bool = False,
+    system: Optional[Opts] = None,
+    times: Optional[Array] = None,
+) -> ArbitraryGrad | ExtTrapGrad:
+    if amplitudes is None:
+        amplitudes = np.zeros(1)
+    if times is None:
+        times = np.zeros(1)
+    if system is None:
+        system = Opts.default
+    if max_grad <= 0:
+        max_grad = cast(Scalar, system.max_grad)
+    if max_slew <= 0:
+        max_slew = cast(Scalar, system.max_slew)
+
+    if channel not in ["x", "y", "z"]:
+        raise ValueError(
+            f"Invalid channel. Must be one of 'x', 'y' or 'z'. Passed: {channel}"
+        )
+    if len(times) != len(amplitudes):
+        raise ValueError("Times and amplitudes must have the same length.")
+
+    if convert_to_arbitrary:
+        raise NotImplementedError
+        # # Represent the extended trapezoid on the regularly sampled time grid
+        waveform = points_to_waveform(
+            times=times, amplitudes=amplitudes, grad_raster_time=system.grad_raster_time
+        )
+        return make_arbitrary_grad(
+            channel=channel,
+            waveform=waveform,
+            system=system,
+            max_slew=max_slew,
+            max_grad=max_grad,
+            delay=times[0],
+        )
+    else:
+        return ExtTrapGrad(channel=channel, waveform=amplitudes, _times=times)

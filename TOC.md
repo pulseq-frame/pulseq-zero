@@ -85,13 +85,13 @@ Additional information, to be integrated into the list below:
 - [x] get_supported_rf_uses            **re-exported**
 - [x] make_adc                          *make_adc.py*
 - [ ] make_adiabatic_pulse
-- [ ] make_arbitrary_grad
+- [x] make_arbitrary_grad               *make_grad.py*
 - [x] make_arbitrary_rf                 *make_pulse.py*
 - [x] make_block_pulse                  *make_pulse.py*
 - [x] make_delay                        *make_basic.py*
 - [x] make_digital_output_pulse         *make_basic.py* **acts as delay in sim**
-- [ ] make_extended_trapezoid
-- [ ] make_extended_trapezoid_area     (copied from pypulseq, not differentiable)
+- [x] make_extended_trapezoid           *make_grad.py*
+- [ ] make_extended_trapezoid_area
 - [x] make_gauss_pulse                  *make_pulse.py*
 - [x] make_label                        *make_basic.py*
 - [x] make_sinc_pulse                   *make_pulse.py*
@@ -99,7 +99,7 @@ Additional information, to be integrated into the list below:
 - [-] make_sms                         **no sigpy support**
 - [x] make_trapezoid                    *make_grad.py*
 - [x] make_trigger                      *make_basic.py* **acts as delay in sim**
-- [ ] points_to_waveform
+- [x] points_to_waveform                *grad_funcs.py*
 - [ ] rotate
 - [x] round_half_up                     *math.py*
 - [x] scale_grad                        *grad_funcs.py*

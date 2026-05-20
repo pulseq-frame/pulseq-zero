@@ -93,8 +93,12 @@ from .wrapper.make_pulse import (
     make_sinc_pulse,
     make_arbitrary_rf,
 )
-from .wrapper.make_grad import make_trapezoid
-from .wrapper.grad_funcs import scale_grad
+from .wrapper.make_grad import (
+    make_trapezoid,
+    make_extended_trapezoid,
+    make_arbitrary_grad,
+)
+from .wrapper.grad_funcs import scale_grad, points_to_waveform
 
 from .adapter.sequence import Sequence
 from .adapter.extended_trap_grad import make_extended_trapezoid_area
@@ -102,8 +106,6 @@ from .adapter.grads import (
     split_gradient,
     # split_gradient_at,
     add_gradients,
-    make_arbitrary_grad,
-    make_extended_trapezoid,
 )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
@@ -114,7 +116,6 @@ from .not_implemented import (
     align,
     calc_ramp,
     rotate,
-    points_to_waveform,
     traj_to_grad,
     make_soft_delay,
     calc_SAR,

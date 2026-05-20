@@ -107,60 +107,6 @@ def split_gradient_at(grad, time_point: float | torch.Tensor, system=None):
     return grad1, grad2
 
 
-def make_arbitrary_grad(
-    channel,
-    waveform,
-    delay=torch.tensor(0.0),
-    max_grad=None,
-    max_slew=None,
-    system=None,
-    first=None,
-    last=None
-):
-    if system is None:
-        system = Opts.default
-
-    tt = (torch.arange(len(waveform)) + 0.5) * system.grad_raster_time
-
-    if first is None:
-        first = (3 * waveform[0] - waveform[1]) * 0.5  # linear extrapolation
-
-    if last is None:
-        last = (3 * waveform[-1] - waveform[-2]) * 0.5  # linear extrapolation
-
-
-    return FreeGrad(
-        channel,
-        waveform,
-        delay,
-        tt,
-        len(waveform) * system.grad_raster_time,
-        first, 
-        last
-    )
-
-
-def  make_extended_trapezoid(
-    channel,
-    amplitudes=torch.zeros(1),
-    convert_to_arbitrary=False,
-    max_grad=None,
-    max_slew=None,
-    skip_check=False,
-    system=None,
-    times=torch.zeros(1),
-):
-    return FreeGrad(
-        channel,
-        amplitudes,
-        times[0],
-        times - times[0],
-        times[-1], 
-        amplitudes[0],
-        amplitudes[-1]
-    )
-
-
 def add_gradients(
         grads,
         max_grad=None,
