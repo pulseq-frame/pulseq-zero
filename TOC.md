@@ -71,15 +71,15 @@ Additional information, to be integrated into the list below:
 - [-] SigpyPulseOpts                   **no sigpy support**
 - [ ] add_gradients
 - [ ] align
-- [x] calc_SAR                          *not_implemented.py* **deprecated in pulseq**
+- [x] calc_SAR                         **error deprecated**
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*
 - [ ] calc_ramp
 - [ ] calc_rf_bandwidth
 - [x] calc_rf_center                    *helpers.py*
 - [ ] check_timing
-- [-] disable_trace                    **not supported**
-- [-] enable_trace                     **not supported**
+- [-] disable_trace                    **no trace support**
+- [-] enable_trace                     **no trace support**
 - [x] eps                              **re-exported**
 - [x] get_supported_labels             **re-exported**
 - [x] get_supported_rf_uses            **re-exported**
@@ -110,7 +110,7 @@ Additional information, to be integrated into the list below:
 - utils module
   - [ ] cumsum
   - [ ] safe_pns_prediction
-  - [-] tracing                        **not supported**
+  - [-] tracing                        **no trace support**
 - pulseq-zero math
   - [x] ceil
   - [x] floor
