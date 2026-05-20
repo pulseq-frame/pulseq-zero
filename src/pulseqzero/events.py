@@ -224,7 +224,7 @@ class Adc:
 @dataclass
 class Delay:
     delay: Scalar
-    _pp_event: SimpleNamespace # could be a trigger or digital output pulse
+    _pp_event: SimpleNamespace  # could be a trigger or digital output pulse
 
     @property
     def duration(self) -> Scalar:
@@ -232,3 +232,7 @@ class Delay:
 
     def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return self._pp_event
+
+
+# Type for all pulseq-zero event types
+Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay

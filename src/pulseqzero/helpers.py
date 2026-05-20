@@ -1,15 +1,10 @@
 from warnings import warn
-import torch
 import numpy as np
-from .events import Scalar, RfPulse
+from .events import Scalar, RfPulse, Event
 
 
-def calc_duration(*args):
-    duration = torch.zeros(())
-    for event in args:
-        if event is not None:
-            duration = torch.maximum(duration, torch.as_tensor(event.duration))
-    return duration
+def calc_duration(*args: Event) -> Scalar:
+    return max(ev.duration for ev in args)
 
 
 def calc_rf_bandwidth(rf, cutoff=0.5, return_axis=False, return_spectrum=False):
