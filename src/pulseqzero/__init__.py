@@ -81,7 +81,7 @@ from .helpers import (
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
 from .wrapper.make_adc import make_adc
-from .wrapper.make_delays import make_delay, make_trigger, make_digital_output_pulse
+from .wrapper.make_basic import make_delay, make_trigger, make_digital_output_pulse
 from .wrapper.make_pulse import make_block_pulse, make_gauss_pulse, make_sinc_pulse, make_arbitrary_rf
 from .wrapper.make_grad import make_trapezoid
 from .wrapper.grad_funcs import scale_grad
