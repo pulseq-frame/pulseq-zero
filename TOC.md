@@ -88,7 +88,7 @@ Additional information, to be integrated into the list below:
 - [ ] event_lib
 - [x] get_supported_labels             **re-exported**
 - [ ] get_supported_rf_uses            **re-exported**
-- [ ] make_adc
+- [x] make_adc                          *make_adc.py*
 - [ ] make_adiabatic_pulse
 - [ ] make_arbitrary_grad
 - [x] make_arbitrary_rf                 *make_pulse.py*

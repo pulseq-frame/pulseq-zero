@@ -206,10 +206,25 @@ class Adc:
     delay: Scalar
     freq_offset: Scalar  # ignored by sim
     phase_offset: Scalar
+    freq_ppm: Scalar
+    phase_ppm: Scalar
+    _sys: Opts
 
     @property
     def duration(self) -> Scalar:
         return self.delay + self.num_samples * self.dwell
+    
+    def to_pulseq(self) -> SimpleNamespace:
+        return pp.make_adc(
+            num_samples=self.num_samples,
+            delay=_n(self.delay),
+            dwell=_n(self.dwell),
+            freq_offset=_n(self.freq_offset),
+            phase_offset=_n(self.phase_offset),
+            system=self._sys,
+            freq_ppm=_n(self.freq_ppm),
+            phase_ppm=_n(self.phase_ppm)
+        )
 
 
 @dataclass

@@ -94,6 +94,7 @@ def _translate_free(ev: ExtTrapGrad | ArbitraryGrad, system):
 
 def _translate_adc(ev: Adc, system):
     """Re-create an adc stored as pulseq-zero object with pypulseq."""
+    return ev.to_pulseq()
     return pypulseq.make_adc(
         num_samples=int(ev.num_samples),
         dwell=_n(ev.dwell),
