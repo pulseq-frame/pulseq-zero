@@ -78,7 +78,7 @@ def make_trapezoid(
     # calc_path == "amplitude"
     elif area is None and flat_area is None and amplitude is not None:
         if rise_time is None or fall_time is None:
-            rise_time = cast(Scalar, abs(amplitude) / max_slew)
+            rise_time = abs(amplitude) / max_slew
             fall_time = rise_time
 
         amplitude2 = amplitude

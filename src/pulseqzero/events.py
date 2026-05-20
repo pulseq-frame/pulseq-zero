@@ -224,10 +224,11 @@ class Adc:
 @dataclass
 class Delay:
     delay: Scalar
+    _pp_event: SimpleNamespace # could be a trigger or digital output pulse
 
     @property
     def duration(self) -> Scalar:
         return self.delay
 
     def to_pulseq(self, system: Opts) -> SimpleNamespace:
-        return pp.make_delay(_n(self.delay))
+        return self._pp_event

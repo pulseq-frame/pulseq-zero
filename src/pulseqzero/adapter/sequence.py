@@ -2,12 +2,13 @@ from ..wrapper import _n
 from copy import copy, deepcopy
 import MRzeroCore
 
+from typing import Optional
 from .. import calc_duration, Opts
 from . import seq_convert
 
 
 class Sequence:
-    def __init__(self, system: Opts = None, use_block_cache=True):
+    def __init__(self, system: Optional[Opts] = None, use_block_cache=True):
         self.definitions = {}
         self.blocks = []
         self.system = system if system else Opts.default

@@ -1,0 +1,32 @@
+from typing import Optional
+from ..events import Delay, Scalar
+from . import _n
+import pypulseq as pp
+from pypulseq import Opts
+
+
+def make_delay(d: Scalar) -> Delay:
+    return Delay(delay=d, _pp_event=pp.make_delay(_n(d)))
+
+
+def make_trigger(
+    channel: str,
+    delay: Scalar = 0.0,
+    duration: float = 0.0,
+    system: Optional[Opts] = None,
+) -> Delay:
+    return Delay(
+        delay=delay, _pp_event=pp.make_trigger(channel, _n(delay), duration, system)
+    )
+
+
+def make_digital_output_pulse(
+    channel: str,
+    delay: Scalar = 0.0,
+    duration: float = 4e-3,
+    system: Optional[Opts] = None,
+) -> Delay:
+    return Delay(
+        delay=delay,
+        _pp_event=pp.make_digital_output_pulse(channel, _n(delay), duration, system),
+    )

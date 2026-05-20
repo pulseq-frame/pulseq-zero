@@ -72,7 +72,7 @@ Additional information, to be integrated into the list below:
 - [ ] add_gradients
 - [ ] align
 - [ ] block_to_events
-- [x] calc_SAR                          *not_implemented.py (deprecated func)*
+- [x] calc_SAR                          *not_implemented.py* **deprecated in pulseq**
 - [x] calc_adc_segments                **re-exported**
 - [ ] calc_duration
 - [ ] calc_ramp
@@ -93,8 +93,8 @@ Additional information, to be integrated into the list below:
 - [ ] make_arbitrary_grad
 - [x] make_arbitrary_rf                 *make_pulse.py*
 - [x] make_block_pulse                  *make_pulse.py*
-- [x] make_delay                        *make_delay_trigger_label.py*
-- [ ] make_digital_output_pulse
+- [x] make_delay                        *make_delays.py*
+- [x] make_digital_output_pulse         *make_delays.py* **acts as delay in sim**
 - [ ] make_extended_trapezoid
 - [ ] make_extended_trapezoid_area     (copied from pypulseq, not differentiable)
 - [x] make_gauss_pulse                  *make_pulse.py*
@@ -103,7 +103,7 @@ Additional information, to be integrated into the list below:
 - [-] make_slr                         **no sigpy support**
 - [-] make_sms                         **no sigpy support**
 - [x] make_trapezoid                    *make_grad.py*
-- [ ] make_trigger
+- [x] make_trigger                      *make_delays.py* **acts as delay in sim**
 - [ ] points_to_waveform
 - [ ] rotate
 - [x] round_half_up                     *math.py*
