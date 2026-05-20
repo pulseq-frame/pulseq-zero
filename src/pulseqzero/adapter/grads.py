@@ -5,15 +5,6 @@ from ..events import TrapGrad, FreeGrad
 from ..math import ceil, interp
 
 
-def scale_grad(grad, scale):
-    grad = deepcopy(grad)
-    if isinstance(grad, TrapGrad):
-        grad.amplitude *= scale
-    if isinstance(grad, FreeGrad):
-        grad.waveform *= scale
-    return grad
-
-
 def split_gradient(grad, system):
     assert isinstance(grad, TrapGrad)
     if system is None:
@@ -114,119 +105,6 @@ def split_gradient_at(grad, time_point: float | torch.Tensor, system=None):
     
     
     return grad1, grad2
-
-def make_trapezoid(
-    channel,
-    amplitude=None,
-    area=None,
-    delay=torch.tensor(0.0),
-    duration=None,
-    fall_time=None,
-    flat_area=None,
-    flat_time=None,
-    max_grad=None,
-    max_slew=None,
-    rise_time=None,
-    system=None,
-):
-    if system is None:
-        system = Opts.default
-    if max_grad is None:
-        max_grad = system.max_grad
-    if max_slew is None:
-        max_slew = system.max_slew
-
-    # new_amp is only calculated to set rise_time below, the actual
-    # amplitude is then calculated from tmp_amp and the timing
-
-    # TODO: This function should really be split into multiple with the different argument combination options
-
-    if flat_time is not None:
-        if amplitude is not None:
-            new_amp = amplitude
-        elif area is not None:
-            assert rise_time is not None
-            if fall_time is None:
-                fall_time = rise_time
-            new_amp = area / (rise_time / 2 + flat_time + fall_time / 2)
-        else:
-            assert flat_area is not None
-            new_amp = flat_area / flat_time
-
-        if rise_time is None:
-            rise_time = ceil(abs(new_amp) / max_slew / system.grad_raster_time) * system.grad_raster_time
-            if rise_time == 0:
-                rise_time = system.grad_raster_time
-        if fall_time is None:
-            fall_time = rise_time
-
-    elif duration is not None:
-        if amplitude is None:
-            assert area is not None
-
-            if rise_time is None:
-                _, rise_time, flat_time, fall_time = calc_params_for_area(
-                    area, max_slew, max_grad, system.grad_raster_time
-                )
-                assert duration >= rise_time + flat_time + fall_time
-
-                dC = 1 / abs(2 * max_slew)
-                new_amp = (
-                    duration - (duration**2 - 4 * abs(area) * dC)
-                ) / (2 * dC)
-            else:
-                if fall_time is None:
-                    fall_time = rise_time
-                new_amp = area / (duration - rise_time / 2 - fall_time / 2)
-        else:
-            new_amp = amplitude
-
-        if rise_time is None:
-            rise_time = ceil(abs(new_amp) / max_slew / system.grad_raster_time) * system.grad_raster_time
-            if rise_time == 0:
-                rise_time = system.grad_raster_time
-        if fall_time is None:
-            fall_time = rise_time
-        flat_time = duration - rise_time - fall_time
-
-        if amplitude is None:
-            new_amp = area / (rise_time / 2 + flat_time + fall_time / 2)
-
-    else:
-        assert area is not None
-        new_amp, rise_time, flat_time, fall_time = calc_params_for_area(
-            area, max_slew, max_grad, system.grad_raster_time
-        )
-
-    return TrapGrad(
-        channel,
-        new_amp,
-        rise_time,
-        flat_time,
-        fall_time,
-        delay
-    )
-
-
-def calc_params_for_area(area, max_slew, max_grad, grad_raster_time):
-    rise_time = ceil((abs(area) / max_slew)**0.5 / grad_raster_time) * grad_raster_time
-    if rise_time == 0:
-        rise_time = grad_raster_time
-    amplitude = area / rise_time
-    t_eff = rise_time
-
-    if abs(amplitude) > max_grad:
-        t_eff = ceil(abs(area) / max_grad / grad_raster_time) * grad_raster_time
-        amplitude = area / t_eff
-        rise_time = ceil(abs(amplitude) / max_slew / grad_raster_time) * grad_raster_time
-
-        if rise_time == 0:
-            rise_time = grad_raster_time
-
-    flat_time = t_eff - rise_time
-    fall_time = rise_time
-
-    return amplitude, rise_time, flat_time, fall_time
 
 
 def make_arbitrary_grad(

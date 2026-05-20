@@ -78,11 +78,11 @@ Additional information, to be integrated into the list below:
 - [ ] calc_rf_bandwidth
 - [x] calc_rf_center                    *helpers.py*
 - [ ] check_timing
-- [ ] disable_trace
-- [ ] enable_trace
+- [-] disable_trace                    **not supported**
+- [-] enable_trace                     **not supported**
 - [x] eps                              **re-exported**
 - [x] get_supported_labels             **re-exported**
-- [ ] get_supported_rf_uses            **re-exported**
+- [x] get_supported_rf_uses            **re-exported**
 - [x] make_adc                          *make_adc.py*
 - [ ] make_adiabatic_pulse
 - [ ] make_arbitrary_grad
@@ -110,7 +110,7 @@ Additional information, to be integrated into the list below:
 - utils module
   - [ ] cumsum
   - [ ] safe_pns_prediction
-  - [ ] tracing
+  - [-] tracing                        **not supported**
 - pulseq-zero math
   - [x] ceil
   - [x] floor

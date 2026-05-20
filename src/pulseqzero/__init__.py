@@ -110,17 +110,18 @@ from .adapter.grads import (
 # This list should be eliminated before releasing 1.0
 from .not_implemented import (
     make_adiabatic_pulse,
-    sigpy_n_seq,
-    make_slr,
-    make_sms,
     SigpyPulseOpts,
     align,
     calc_ramp,
     rotate,
     points_to_waveform,
     traj_to_grad,
-    enable_trace,
-    disable_trace,
     make_soft_delay,
     calc_SAR,
+    # these will for sure not be supported (documented)
+    enable_trace,
+    disable_trace,
+    sigpy_n_seq,
+    make_slr,
+    make_sms,
 )
