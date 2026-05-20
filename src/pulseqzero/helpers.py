@@ -4,7 +4,7 @@ from .events import Scalar, RfPulse, Event
 
 
 def calc_duration(*args: Event) -> Scalar:
-    return max(ev.duration for ev in args)
+    return max(ev.duration for ev in args if ev is not None)
 
 
 def calc_rf_bandwidth(rf, cutoff=0.5, return_axis=False, return_spectrum=False):

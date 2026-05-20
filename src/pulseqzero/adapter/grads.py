@@ -1,8 +1,9 @@
-from copy import copy, deepcopy
+from copy import deepcopy
 import torch
 from .. import Opts, calc_duration
-from ..events import TrapGrad, FreeGrad
-from ..math import ceil, interp
+from ..events import TrapGrad
+from ..math import interp
+from ..wrapper.make_grad import make_extended_trapezoid
 
 
 def split_gradient(grad, system):

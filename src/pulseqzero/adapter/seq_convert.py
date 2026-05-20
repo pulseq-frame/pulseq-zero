@@ -1,7 +1,7 @@
 import torch
 import MRzeroCore as mr0
 from .. import calc_duration
-from ..events import Adc, Delay, FreeGrad, RfPulse, TrapGrad
+from ..events import Adc, Delay, RfPulse, TrapGrad, ExtTrapGrad, ArbitraryGrad
 
 def convert_tensors_to_float32(obj):
     if hasattr(obj, '__dataclass_fields__'):
@@ -32,7 +32,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
             if isinstance(ev, RfPulse):
                 assert rf is None
                 rf = ev
-            if isinstance(ev, (TrapGrad, FreeGrad)):
+            if isinstance(ev, (TrapGrad, ExtTrapGrad, ArbitraryGrad)):
                 assert ev.channel in ["x", "y", "z"]
                 if ev.channel == "x":
                     assert grad_x is None
@@ -189,7 +189,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
                 grad_ampl_x = 0 
             else:
                 # distinguish between TrapGrad and FreeGrad
-                if isinstance(grad_x, FreeGrad):
+                if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):
                     # assuming pulse center and gradient waveform are aligned
                     grad_ampl_x = grad_x.waveform[len(grad_x.waveform)//2]
                 else: grad_ampl_x = grad_x.amplitude 
@@ -200,7 +200,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             if rf_dur <= grad_y.delay:  
                 grad_ampl_y = 0 
             else:
-                if isinstance(grad_y, FreeGrad):
+                if isinstance(grad_y, ExtTrapGrad | ArbitraryGrad):
                     grad_ampl_y = grad_y.waveform[len(grad_y.waveform)//2]  
                 else: grad_ampl_y = grad_y.amplitude 
         else:             
@@ -210,7 +210,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             if rf_dur <= grad_z.delay:           
                 grad_ampl_z = 0 
             else:
-                if isinstance(grad_z, FreeGrad):
+                if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):
                     grad_ampl_z = grad_z.waveform[len(grad_z.waveform)//2] 
                 else: grad_ampl_z = grad_z.amplitude 
         else: 
@@ -293,7 +293,7 @@ def integrate(grad, t):
         F = grad.amplitude * (F1 + F2 + F3 + h(t - T123) * F_inf)
 
         return F
-    elif isinstance(grad, FreeGrad):
+    elif isinstance(grad, ExtTrapGrad | ArbitraryGrad):
         # To stay differentiable, we don't want dynamic indexing, but instead
         # calculate, how much of every segment of the gradient contributes
         # https://www.desmos.com/calculator/j2vopzhb2z
@@ -321,7 +321,12 @@ def integrate(grad, t):
 
 def integrate_pulse(rf: RfPulse, t_start, t_end):
     import numpy as np
-    t_rel, amp_shape = rf.shape
+    # HACK: horrible hack to get integration going, maybe pulses *should* store their shape?
+    from pypulseq import Opts
+    pp_rf = rf.to_pulseq(Opts.default)
+    t_rel = pp_rf.t
+    amp_shape = pp_rf.signal
+    # t_rel, amp_shape = rf.shape
     time_shape = np.asarray(t_rel) + float(rf.delay)
     amp_shape = np.asarray(amp_shape)
     t_start = float(t_start)

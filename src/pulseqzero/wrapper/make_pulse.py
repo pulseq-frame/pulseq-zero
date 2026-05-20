@@ -57,7 +57,7 @@ def make_block_pulse(
         use=use,
         shim_array=shim_array,
         # wrapped pypulseq call - stored if needed for writing, plotting, ...
-        _pp_factory=lambda self: pp.make_block_pulse(
+        _pp_factory=lambda self, system: pp.make_block_pulse(
             flip_angle=_n(self.flip_angle),
             delay=_n(self.delay),
             duration=_n(self.shape_dur),
@@ -125,7 +125,7 @@ def make_gauss_pulse(
         use=use,
         shim_array=shim_array,
         # wrapped pypulseq call - stored if needed for writing, plotting, ...
-        _pp_factory=lambda self: pp.make_gauss_pulse(
+        _pp_factory=lambda self, system: pp.make_gauss_pulse(
             flip_angle=_n(self.flip_angle),
             apodization=_n(apodization),
             bandwidth=_n(bandwidth),
@@ -233,7 +233,7 @@ def make_sinc_pulse(
         use=use,
         shim_array=shim_array,
         # wrapped pypulseq call - stored if needed for writing, plotting, ...
-        _pp_factory=lambda self: pp.make_sinc_pulse(
+        _pp_factory=lambda self, system: pp.make_sinc_pulse(
             flip_angle=_n(self.flip_angle),
             apodization=_n(apodization),
             delay=_n(self.delay),
@@ -356,7 +356,7 @@ def make_arbitrary_rf(
         use=use,
         shim_array=shim_array,
         # wrapped pypulseq call - stored if needed for writing, plotting, ...
-        _pp_factory=lambda self: pp.make_arbitrary_rf(
+        _pp_factory=lambda self, system: pp.make_arbitrary_rf(
             signal=_n(signal),
             flip_angle=_n(self.flip_angle),
             bandwidth=0.0,  # for grads only
