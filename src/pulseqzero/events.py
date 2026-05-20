@@ -30,12 +30,6 @@ Scalar = torch.Tensor | float
 # Same but for array-likes (used for shim arrays).
 Array = torch.Tensor | np.ndarray
 
-# Return type of pulseq pulse generating functions with optional slice selection
-Rf = SimpleNamespace
-RfGz = tuple[SimpleNamespace, SimpleNamespace]
-RfGzGzr = tuple[SimpleNamespace, SimpleNamespace, SimpleNamespace]
-MakeRfRetType = Rf | RfGz | RfGzGzr
-
 
 @dataclass
 class RfPulse:
@@ -50,14 +44,15 @@ class RfPulse:
     shim_array: Optional[Array]  # Martins pTx extension
 
     # Reconstruct pypulseq object from self - additional params stored in lambda.
-    _pp_factory: Callable[[RfPulse], MakeRfRetType]
+    _pp_factory: Callable[[RfPulse, Opts], SimpleNamespace]
 
     @property
     def duration(self) -> Scalar:
         return self.delay + self.shape_dur + self.ringdown_time
 
-    def to_pulseq(self) -> MakeRfRetType:
-        return self._pp_factory(self)
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
+        # Pulses never generate gz / gzr: already split TrapGrad blocks
+        return self._pp_factory(self, system)
 
 
 # constructed in make_trapezoid
@@ -92,7 +87,7 @@ class TrapGrad:
     def last(self) -> float:
         return 0.0
 
-    def to_pulseq(self) -> SimpleNamespace:
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_trapezoid(
             channel=self.channel,
             amplitude=_n(self.amplitude),
@@ -100,6 +95,7 @@ class TrapGrad:
             flat_time=_n(self.flat_time),
             fall_time=_n(self.fall_time),
             delay=_n(self.delay),
+            system=system,
         )
 
 
@@ -112,7 +108,7 @@ class ArbitraryGrad:
     first: Scalar
     last: Scalar
     oversampling: bool
-    _sys: Opts
+    _grad_raster: float
 
     @property
     def duration(self) -> Scalar:
@@ -121,35 +117,33 @@ class ArbitraryGrad:
     @property
     def area(self) -> Scalar:
         if self.oversampling:
-            return (self.waveform[::2] * self._sys.grad_raster_time).sum()
+            return (self.waveform[::2] * self._grad_raster).sum()
         else:
-            return (self.waveform * self._sys.grad_raster_time).sum()
+            return (self.waveform * self._grad_raster).sum()
 
     @property
     def tt(self) -> Array:
         if self.oversampling:
-            return (
-                np.arange(1, len(self.waveform) + 1) * 0.5 * self._sys.grad_raster_time
-            )
+            return np.arange(1, len(self.waveform) + 1) * 0.5 * self._grad_raster
         else:
-            return (np.arange(len(self.waveform)) + 0.5) * self._sys.grad_raster_time
+            return (np.arange(len(self.waveform)) + 0.5) * self._grad_raster
 
     @property
     def shape_dur(self) -> Scalar:
         if self.oversampling:
-            return (len(self.waveform) + 1) * 0.5 * self._sys.grad_raster_time
+            return (len(self.waveform) + 1) * 0.5 * self._grad_raster
         else:
-            return len(self.waveform) * self._sys.grad_raster_time
+            return len(self.waveform) * self._grad_raster
 
-    def to_pulseq(self) -> SimpleNamespace:
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_arbitrary_grad(
             channel=self.channel,
             waveform=_n(self.waveform),
             first=_n(self.first),
             last=_n(self.last),
             delay=_n(self.delay),
-            system=self._sys,
-            oversampling=self.oversampling
+            system=system,
+            oversampling=self.oversampling,
         )
 
 
@@ -190,12 +184,13 @@ class ExtTrapGrad:
     def last(self) -> Scalar:
         return self.waveform[-1]
 
-    def to_pulseq(self) -> SimpleNamespace:
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_extended_trapezoid(
             channel=self.channel,
             amplitudes=_n(self.waveform),
             convert_to_arbitrary=False,
             times=_n(self._times),
+            system=system,
         )
 
 
@@ -208,22 +203,21 @@ class Adc:
     phase_offset: Scalar
     freq_ppm: Scalar
     phase_ppm: Scalar
-    _sys: Opts
 
     @property
     def duration(self) -> Scalar:
         return self.delay + self.num_samples * self.dwell
-    
-    def to_pulseq(self) -> SimpleNamespace:
+
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_adc(
             num_samples=self.num_samples,
             delay=_n(self.delay),
             dwell=_n(self.dwell),
             freq_offset=_n(self.freq_offset),
             phase_offset=_n(self.phase_offset),
-            system=self._sys,
+            system=system,
             freq_ppm=_n(self.freq_ppm),
-            phase_ppm=_n(self.phase_ppm)
+            phase_ppm=_n(self.phase_ppm),
         )
 
 
@@ -234,6 +228,6 @@ class Delay:
     @property
     def duration(self) -> Scalar:
         return self.delay
-    
-    def to_pulseq(self) -> SimpleNamespace:
+
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_delay(_n(self.delay))

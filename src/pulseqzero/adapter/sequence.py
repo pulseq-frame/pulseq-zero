@@ -1,3 +1,4 @@
+from ..wrapper import _n
 from copy import copy, deepcopy
 import MRzeroCore
 
@@ -69,7 +70,6 @@ class Sequence:
     def to_pypulseq(self):
         import warnings
         import pypulseq
-        from . import to_pypulseq as _to_pp
 
         warnings.warn(
             "pulseqzero.Sequence: translating to PyPulseq — avoid calling "
@@ -78,10 +78,10 @@ class Sequence:
         )
         pp_seq = pypulseq.Sequence(system=self.system)
         for block in self.blocks:
-            pp_events = [_to_pp.event_to_pp(ev, self.system) for ev in block]
+            pp_events = [ev.to_pulseq(self.system) for ev in block]
             pp_seq.add_block(*pp_events)
         for key, value in self.definitions.items():
-            pp_seq.set_definition(key=key, value=_to_pp._n(value))
+            pp_seq.set_definition(key=key, value=_n(value))
         return pp_seq
 
     # What we do all of this for:

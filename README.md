@@ -185,7 +185,7 @@ Legend:
 | `calc_SAR`, `make_label`               | ⚠️ | no-op |
 | `calc_rf_bandwidth`, `calc_rf_center`  | ⚠️ | numeric approximations; pulse shape detail not tracked |
 | `calc_duration`                        | ✅ | differentiable, torch.maximum-based |
-| `Opts`                                 | ➡️ | direct re-export of `pypulseq.Opts` (all fields) |
+| `Opts`                                 | ➡️ | direct re-export of `pypulseq.Opts`; configured once on the `Sequence` — per-call `system=` is not retained (see "System is configured once" below) |
 | `make_trapezoid`, `make_extended_trapezoid`, `make_arbitrary_grad`, `add_gradients`, `scale_grad`, `split_gradient`, `split_gradient_at` | ✅ | adapter-native, differentiable |
 | `make_extended_trapezoid_area`         | ⚠️ | copied from PyPulseq; **not yet differentiable** |
 | `make_sinc_pulse`, `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf` | ✅ | delegate shape generation to PyPulseq, keep differentiable `flip_angle` / `phase_offset` / `freq_offset` / `delay` |
@@ -193,6 +193,14 @@ Legend:
 | `get_supported_labels`                 | ✅ | static list |
 | `make_adiabatic_pulse`, `sigpy_n_seq`, `make_slr`, `make_sms`, `SigpyPulseOpts` | 🚫 | use PyPulseq directly, wrap the signal via `make_arbitrary_rf` |
 | `align`, `calc_ramp`, `rotate`, `points_to_waveform`, `traj_to_grad` | 🚫 | not wired yet; call via `seq.to_pypulseq()` if needed |
+
+### System (`Opts`) is configured once, on the `Sequence`
+
+Pulseq-zero applies **one** system to the whole sequence: the `system=` you pass to `pp.Sequence(system=...)` (or `Opts.default` when you pass none). That system is authoritative — it is the one used for every event at `to_mr0()`, `write()`, and `to_pypulseq()`.
+
+A `system=` handed to an individual `make_*` call is honored only for that call's construction-time math (e.g. deriving a slew-limited `rise_time`); it is **not** stored on the event and **not** carried to conversion/export. Consequently, pulseq-zero does **not** support mutating the system between calls, nor using a different/derated `Opts` for individual events: at export the `Sequence`'s system wins, so an event built under different limits can silently disagree with it (or fail PyPulseq's re-validation). If you genuinely need per-event limits, do that one-off through `seq.to_pypulseq()`.
+
+This matches the universal pulseq idiom — create one `Opts` at the top, pass it to the `Sequence` and (by convention) to each `make_*` call; since it is the same object, everything stays consistent. Every script in the PyPulseq example suite checked (`write_gre`, `write_epi`, `write_tse`, `write_haste`, `write_radial_gre`, `write_ute`, `write_epi_se_rs`) creates exactly one `Opts` and reuses it throughout.
 
 ### Differentiability
 
