@@ -3,7 +3,7 @@ import inspect
 import numpy as np
 import pypulseq
 
-from ..events import Adc, Delay, FreeGrad, RfPulse, TrapGrad
+from ..events import Adc, Delay, RfPulse, TrapGrad, ExtTrapGrad, ArbitraryGrad
 
 
 def _n(x):
@@ -60,8 +60,10 @@ def _translate_trap(ev: TrapGrad, system):
     )
 
 
-def _translate_free(ev: FreeGrad, system):
+def _translate_free(ev: ExtTrapGrad | ArbitraryGrad, system):
     """Re-create a free gradient stored as pulseq-zero object with pypulseq."""
+    return ev.to_pulseq()
+    
     tt = np.asarray(_n(ev.tt))
     wf = np.asarray(_n(ev.waveform))
     delay = _n(ev.delay)
@@ -113,7 +115,7 @@ def event_to_pp(ev, system):
         return _translate_pulse(ev, system)
     if isinstance(ev, TrapGrad):
         return _translate_trap(ev, system)
-    if isinstance(ev, FreeGrad):
+    if isinstance(ev, ExtTrapGrad | ArbitraryGrad):
         return _translate_free(ev, system)
     if isinstance(ev, Adc):
         return _translate_adc(ev, system)

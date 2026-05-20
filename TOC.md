@@ -107,7 +107,7 @@ Additional information, to be integrated into the list below:
 - [ ] points_to_waveform
 - [ ] rotate
 - [x] round_half_up                     *math.py*
-- [ ] scale_grad
+- [x] scale_grad                        *grad_funcs.py*
 - [-] sigpy_n_seq                      **no sigpy support**
 - [ ] split_gradient
 - [ ] split_gradient_at

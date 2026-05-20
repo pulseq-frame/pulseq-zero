@@ -21,6 +21,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import pypulseq as pp
+from pypulseq import Opts
 from .wrapper import _n
 
 
@@ -59,6 +60,7 @@ class RfPulse:
         return self._pp_factory(self)
 
 
+# constructed in make_trapezoid
 @dataclass
 class TrapGrad:
     channel: str
@@ -101,15 +103,16 @@ class TrapGrad:
         )
 
 
+# constructed in make_arbitrary_grad
 @dataclass
-class FreeGrad:
+class ArbitraryGrad:
     channel: str
-    waveform: torch.Tensor
+    waveform: Array
     delay: Scalar
-    tt: torch.Tensor
-    shape_dur: Scalar
-    first_waveform: Scalar
-    last_waveform: Scalar
+    first: Scalar
+    last: Scalar
+    oversampling: bool
+    _sys: Opts
 
     @property
     def duration(self) -> Scalar:
@@ -117,20 +120,83 @@ class FreeGrad:
 
     @property
     def area(self) -> Scalar:
-        return (
-            0.5
-            * (
-                (self.tt[1:] - self.tt[:-1]) * (self.waveform[1:] + self.waveform[:-1])
-            ).sum()
+        if self.oversampling:
+            return (self.waveform[::2] * self._sys.grad_raster_time).sum()
+        else:
+            return (self.waveform * self._sys.grad_raster_time).sum()
+
+    @property
+    def tt(self) -> Array:
+        if self.oversampling:
+            return (
+                np.arange(1, len(self.waveform) + 1) * 0.5 * self._sys.grad_raster_time
+            )
+        else:
+            return (np.arange(len(self.waveform)) + 0.5) * self._sys.grad_raster_time
+
+    @property
+    def shape_dur(self) -> Scalar:
+        if self.oversampling:
+            return (len(self.waveform) + 1) * 0.5 * self._sys.grad_raster_time
+        else:
+            return len(self.waveform) * self._sys.grad_raster_time
+
+    def to_pulseq(self) -> SimpleNamespace:
+        return pp.make_arbitrary_grad(
+            channel=self.channel,
+            waveform=_n(self.waveform),
+            first=_n(self.first),
+            last=_n(self.last),
+            delay=_n(self.delay),
+            system=self._sys,
+            oversampling=self.oversampling
         )
+
+
+# constructed in make_extended_trapezoid
+@dataclass
+class ExtTrapGrad:
+    channel: str
+    waveform: Array
+    _times: Array
+
+    @property
+    def duration(self) -> Scalar:
+        return self._times[-1]
+
+    @property
+    def delay(self) -> Scalar:
+        return self._times[0]
+
+    @property
+    def tt(self) -> Array:
+        return self._times - self.delay
+
+    @property
+    def shape_dur(self) -> Scalar:
+        return self._times[-1] - self.delay
+
+    @property
+    def area(self) -> Scalar:
+        dt = self._times[1:] - self._times[:-1]
+        mean_amp = 0.5 * (self.waveform[1:] + self.waveform[:-1])
+        return (dt * mean_amp).sum()
 
     @property
     def first(self) -> Scalar:
-        return self.first_waveform
+        return self.waveform[0]
 
     @property
     def last(self) -> Scalar:
-        return self.last_waveform
+        return self.waveform[-1]
+
+    def to_pulseq(self) -> SimpleNamespace:
+        return pp.make_extended_trapezoid(
+            channel=self.channel,
+            amplitudes=_n(self.waveform),
+            convert_to_arbitrary=False,
+            times=_n(self._times),
+        )
 
 
 @dataclass
