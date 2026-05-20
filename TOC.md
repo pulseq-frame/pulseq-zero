@@ -93,7 +93,7 @@ Additional information, to be integrated into the list below:
 - [ ] make_arbitrary_grad
 - [x] make_arbitrary_rf                 *make_pulse.py*
 - [x] make_block_pulse                  *make_pulse.py*
-- [ ] make_delay
+- [x] make_delay                        *make_delay_trigger_label.py*
 - [ ] make_digital_output_pulse
 - [ ] make_extended_trapezoid
 - [ ] make_extended_trapezoid_area     (copied from pypulseq, not differentiable)

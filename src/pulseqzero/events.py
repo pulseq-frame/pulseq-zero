@@ -234,3 +234,6 @@ class Delay:
     @property
     def duration(self) -> Scalar:
         return self.delay
+    
+    def to_pulseq(self) -> SimpleNamespace:
+        return pp.make_delay(_n(self.delay))
