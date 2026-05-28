@@ -189,15 +189,17 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
         phase += phase_increment
         phase_increment += 2*torch.pi * rf.freq_offset * step
         
-        rf_dur = rf.delay + rf.shape_dur # rf duration without ringdown       
+        rf_dur = rf.delay + rf.shape_dur # rf duration without ringdown    
+
+        # handle gradients in parallel to pulse   
         if grad_x: 
             if rf_dur <= grad_x.delay: # gradient in block starts after pulse has ended   
                 grad_ampl_x = 0 
             else:
                 # distinguish between TrapGrad and FreeGrad
-                if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):
-                    # assuming pulse center and gradient waveform are aligned
-                    grad_ampl_x = grad_x.waveform[len(grad_x.waveform)//2]
+                if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):                    
+                    # find closest waveform point to gradient timepoint
+                    grad_ampl_x = grad_x.waveform[torch.argmin(torch.abs(grad_x.tt - t_grad[i+1]))]
                 else: grad_ampl_x = grad_x.amplitude 
         else: 
             grad_ampl_x = 0
@@ -207,7 +209,7 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
                 grad_ampl_y = 0 
             else:
                 if isinstance(grad_y, ExtTrapGrad | ArbitraryGrad):
-                    grad_ampl_y = grad_y.waveform[len(grad_y.waveform)//2]  
+                    grad_ampl_y = grad_y.waveform[torch.argmin(torch.abs(grad_y.tt - t_grad[i+1]))]
                 else: grad_ampl_y = grad_y.amplitude 
         else:             
             grad_ampl_y = 0 
@@ -216,8 +218,8 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             if rf_dur <= grad_z.delay:           
                 grad_ampl_z = 0 
             else:
-                if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):
-                    grad_ampl_z = grad_z.waveform[len(grad_z.waveform)//2] 
+                if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):                    
+                    grad_ampl_z = grad_z.waveform[torch.argmin(torch.abs(grad_z.tt - t_grad[i+1]))]
                 else: grad_ampl_z = grad_z.amplitude 
         else: 
             grad_ampl_z = 0
