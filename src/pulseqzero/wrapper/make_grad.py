@@ -2,6 +2,7 @@ import torch
 from typing import Union, cast, Optional
 from pypulseq import Opts
 from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
+from .grad_funcs import points_to_waveform
 import numpy as np
 
 
@@ -138,12 +139,12 @@ def calculate_shortest_params_for_area(
 
 def make_arbitrary_grad(
     channel: str,
-    waveform: np.ndarray,
-    first: Union[float, None] = None,
-    last: Union[float, None] = None,
-    delay: float = 0.0,
-    max_grad: Union[float, None] = None,
-    max_slew: Union[float, None] = None,
+    waveform: Array,
+    first: Union[Scalar, None] = None,
+    last: Union[Scalar, None] = None,
+    delay: Scalar = 0.0,
+    max_grad: Union[Scalar, None] = None,
+    max_slew: Union[Scalar, None] = None,
     system: Union[Opts, None] = None,
     oversampling: bool = False,
 ) -> ArbitraryGrad:
@@ -210,10 +211,17 @@ def make_extended_trapezoid(
         raise ValueError("Times and amplitudes must have the same length.")
 
     if convert_to_arbitrary:
-        raise NotImplementedError
-        # # Represent the extended trapezoid on the regularly sampled time grid
+        # Represent the extended trapezoid on the regularly sampled time grid
+        # Time regridding is not differentiable
+        if isinstance(times, torch.Tensor) and times.requires_grad:
+            raise ValueError(
+                "make_extended_trapezoid(convert_to_arbitrary=True):"
+                "time regridding is not differentiable but times.requires_grad == True"
+            )
         waveform = points_to_waveform(
-            times=times, amplitudes=amplitudes, grad_raster_time=system.grad_raster_time
+            times=np.asarray(times),
+            amplitudes=amplitudes,
+            grad_raster_time=system.grad_raster_time,
         )
         return make_arbitrary_grad(
             channel=channel,
