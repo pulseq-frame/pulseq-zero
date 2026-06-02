@@ -69,7 +69,7 @@ Additional information, to be integrated into the list below:
   - [ ] waveforms_export
   - [ ] write
 - [-] SigpyPulseOpts                   **no sigpy support**
-- [ ] add_gradients
+- [x] add_gradients                     *grad_funcs.py*
 - [ ] align
 - [x] calc_SAR                         **error deprecated**
 - [x] calc_adc_segments                **re-exported**
