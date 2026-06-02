@@ -75,7 +75,7 @@ Additional information, to be integrated into the list below:
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*
 - [ ] calc_ramp
-- [ ] calc_rf_bandwidth
+- [x] calc_rf_bandwidth                 *helpers.py*
 - [x] calc_rf_center                    *helpers.py*
 - [ ] check_timing
 - [-] disable_trace                    **no trace support**
