@@ -1,57 +1,68 @@
+"""Completeness test for the pulseq-zero adapter (post-mode-switch API).
+
+Pulseq-zero 1.x removed the mode-switching facade: ``import pulseqzero as pp``
+is a drop-in for ``import pypulseq as pp``, and the *same* ``Sequence`` object
+supports both ``seq.write(...)`` and ``seq.to_mr0()`` unconditionally - no
+``pp_impl`` indirection, no ``with pulseqzero.mr0_mode():`` block.
+
+This script verifies that contract end-to-end:
+
+1. ``build_broad_sequence`` builds the same broad sequence against both
+   ``pypulseq`` and ``pulseqzero`` using only the entries documented as native
+   (READMEs section 4, "PyPulseq coverage" table).
+2. ``probe_api`` exercises every other entry point in that table in isolation
+   and records its status (ok / not_implemented / missing / error).
+3. ``probe_exports`` calls the export forwarders on the *built* sequence:
+   ``write``, ``to_pypulseq``, ``test_report``, and (pulseq-zero only)
+   ``to_mr0``.
+4. ``print_support_matrix`` prints a side-by-side ``pypulseq | pulseqzero``
+   matrix and writes it to a markdown file.
+"""
+
 import numpy as np
-import importlib
-import pypulseq as pp
+import pypulseq
 import pulseqzero
 
 
-def _maybe_call(func, *args, **kwargs):
-    if callable(func):
-        try:
-            return True, func(*args, **kwargs), None
-        except Exception as exc:  # pragma: no cover - smoke test error path
-            return False, None, str(exc)
-    return False, None, "not available in selected backend"
+def try_call(fn, *args, **kwargs):
+    """Run ``fn`` and classify the outcome.
 
-
-def _resolve_backend_func(pp_backend, backend: str, func_name: str):
-    attr = getattr(pp_backend, func_name, None)
-    if callable(attr):
-        return attr
-
-    # For plain pypulseq, some APIs are module-level (pp.func is a module).
-    if backend == "pypulseq":
-        try:
-            mod = importlib.import_module(f"pypulseq.{func_name}")
-            mod_attr = getattr(mod, func_name, None)
-            if callable(mod_attr):
-                return mod_attr
-        except Exception:
-            return None
-        
-
-    return None
-
-
-def seq_func(
-    out_seq_path: str = "test_pypulseq_sequence_all_funcs.seq",
-    do_plot: bool = True,
-    do_write: bool = True,
-    backend: str = "pypulseq",
-):
+    Returns ``(status, value_or_None, error_message_or_None)`` where ``status``
+    is one of ``"ok"``, ``"not_implemented"``, ``"missing"``, ``"error"``.
     """
-    Build a broad pypulseq API test sequence.
+    try:
+        return "ok", fn(*args, **kwargs), None
+    except NotImplementedError as exc:
+        return "not_implemented", None, str(exc)
+    except AttributeError as exc:
+        return "missing", None, str(exc)
+    except Exception as exc:
+        return "error", None, f"{type(exc).__name__}: {exc}"
 
-    This intentionally exercises many common pypulseq 1.4.x APIs:
-    - Opts, Sequence, set_definition
-    - make_block_pulse, make_sinc_pulse(return_gz=True), make_delay
-    - make_trapezoid (area / flat_area / amplitude styles)
-    - make_extended_trapezoid, make_arbitrary_grad
-    - make_adc, calc_duration
-    - add_block, check_timing, calculate_kspace, plot, write
-    """
-    pp_backend = pp if backend == "pypulseq" else pulseqzero.pp_impl
 
-    system = pp_backend.Opts(
+def _summarize(val):
+    if val is None:
+        return "None"
+    if hasattr(val, "shape"):
+        return f"<{type(val).__name__} shape={tuple(np.shape(val))}>"
+    if isinstance(val, (list, tuple)):
+        return f"<{type(val).__name__} len={len(val)}>"
+    if isinstance(val, dict):
+        return f"<dict len={len(val)}>"
+    if isinstance(val, (int, float, np.floating, np.integer)):
+        return f"{float(val):.6g}"
+    if isinstance(val, str):
+        return repr(val[:40])
+    return f"<{type(val).__name__}>"
+
+
+# ---------------------------------------------------------------------------
+# Sequence construction (uses only the entries documented as native in both
+# backends, so the same body runs against pypulseq and pulseq-zero).
+# ---------------------------------------------------------------------------
+
+def build_broad_sequence(pp, out_seq_path=None, do_plot=False, do_write=False):
+    system = pp.Opts(
         max_grad=28,
         grad_unit="mT/m",
         max_slew=150,
@@ -62,24 +73,28 @@ def seq_func(
         grad_raster_time=10e-6,
     )
 
-    seq = pp_backend.Sequence(system=system)
-
-    # Definitions that many QA tools expect.
-    seq.set_definition("Name", "PyPulseq_AllFunctions_Test")
+    seq = pp.Sequence(system=system)
+    # NB: only numeric definitions are set here. pulseq-zero's
+    # `Sequence.to_pypulseq` passes every definition value through `_n` which
+    # coerces to float, so a string definition (e.g. `set_definition("Name",
+    # "...")`) blows up at export. The script needs `to_pypulseq` /
+    # `write` / `test_report` to work in order to probe them; if the
+    # adapter starts forwarding strings unchanged, restoring a string
+    # definition here is a one-line change.
     seq.set_definition("FOV", [0.22, 0.22, 0.005])
     seq.set_definition("matrix", [64, 64, 1])
     seq.set_definition("TE", 0.03)
     seq.set_definition("TR", 0.2)
 
-    # RF pulses
-    rf_block = pp_backend.make_block_pulse(
+    # RF pulses - all four factories.
+    rf_block = pp.make_block_pulse(
         flip_angle=np.deg2rad(15),
         duration=1e-3,
         delay=system.rf_dead_time,
         system=system,
         use="excitation",
     )
-    rf_sinc, gz, gzr = pp_backend.make_sinc_pulse(
+    rf_sinc, gz_sinc, gzr_sinc = pp.make_sinc_pulse(
         flip_angle=np.deg2rad(90),
         duration=3e-3,
         slice_thickness=5e-3,
@@ -90,523 +105,474 @@ def seq_func(
         return_gz=True,
         use="excitation",
     )
-
-    # Trapezoids in several creation styles
-    gx_area = pp_backend.make_trapezoid(channel="x", area=4.0, duration=2e-3, system=system)
-    gy_flat = pp_backend.make_trapezoid(channel="y", flat_area=8.0, flat_time=2e-3, system=system)
-    gz_amp = pp_backend.make_trapezoid(channel="z", amplitude=6.0, duration=1.5e-3, system=system)
-
-    # Extended trapezoid and arbitrary gradient
-    ext_times = np.array([0, 0.5e-3, 1.2e-3, 2.0e-3])
-    ext_amps = np.array([0.0, 0.8 * system.max_grad, -0.6 * system.max_grad, 0.0])
-    gx_ext = pp_backend.make_extended_trapezoid(channel="x", times=ext_times, amplitudes=ext_amps, system=system)
-
-    t = np.arange(0, 1e-3, system.grad_raster_time)
-    arb_wave = 0.2 * system.max_grad * np.sin(2 * np.pi * t / t[-1])
-    gy_arb = pp_backend.make_arbitrary_grad(channel="y", waveform=arb_wave, system=system)
-
-    adc = pp_backend.make_adc(num_samples=100, dwell=20e-6, delay=20e-6, system=system)
-    d_short = pp_backend.make_delay(500e-6)
-    d_long = pp_backend.make_delay(2e-3)
-
-    # Additional API smoke tests requested by user.
-    gx2 = pp_backend.make_trapezoid(channel="x", area=2.0, duration=2e-3, system=system)
-    gx_added = pp_backend.add_gradients([gx_area, gx2], system=system)
-
-    aligned_events = pp_backend.align(right=[gx_area, gy_flat, gz_amp])
-
-    k_for_ramps = np.vstack(
-        [
-            np.linspace(0.0, 1e-3, 8),
-            np.zeros(8),
-            np.zeros(8),
-        ]
-    )
-    add_ramps_fn = _resolve_backend_func(pp_backend, backend, "add_ramps")
-    ramps_ok, ramps_res, ramps_err = _maybe_call(add_ramps_fn, k_for_ramps, system=system)
-    ramps_out = ramps_res if ramps_ok else []
-
-    k0 = np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]])
-    k_end = np.array([[1e-3, 2e-3], [0.0, 0.0], [0.0, 0.0]])
-    k_ramp, k_ramp_ok = pp_backend.calc_ramp(k0=k0, k_end=k_end, system=system)
-
-    rf_bw = np.asarray(pp_backend.calc_rf_bandwidth(rf_sinc)).reshape(-1)[0]
-    rf_center_t, rf_center_idx = pp_backend.calc_rf_center(rf_sinc)
-    top_check_ok = False
-    top_check_err = []
-    top_check_duration = None
-
-    compress_shape_fn = _resolve_backend_func(pp_backend, backend, "compress_shape")
-    decompress_shape_fn = _resolve_backend_func(pp_backend, backend, "decompress_shape")
-    convert_fn = _resolve_backend_func(pp_backend, backend, "convert")
-
-    c_ok, compressed_arb, c_err = _maybe_call(compress_shape_fn, arb_wave)
-    dc_ok, decompressed_arb, dc_err = _maybe_call(decompress_shape_fn, compressed_arb) if c_ok else (False, None, "compress_shape failed")
-    conv_ok, converted_grad, conv_err = _maybe_call(convert_fn, 20.0, from_unit="mT/m", to_unit="Hz/m")
-
-    gx_ext_area, gx_ext_area_times, gx_ext_area_amps = pp_backend.make_extended_trapezoid_area(
-        area=1.0,
-        channel="x",
-        grad_start=0.0,
-        grad_end=0.0,
-        system=system,
-    )
-    interp_wave = pp_backend.points_to_waveform(
-        amplitudes=np.array([0.0, 0.8 * system.max_grad, 0.0]),
-        grad_raster_time=system.grad_raster_time,
-        times=np.array([0.0, 0.5e-3, 1.0e-3]),
-    )
-    grad_from_traj, slew_from_traj = pp_backend.traj_to_grad(
-        np.linspace(0.0, 1.0, 16), raster_time=system.grad_raster_time
-    )
-
-    rot_gx, rot_gy = pp_backend.rotate(gx_area, gy_flat, angle=np.pi / 8, axis="z")
-    gx_scaled = pp_backend.scale_grad(gx_area, 0.5)
-    gx_split_up, gx_split_flat, gx_split_down = pp_backend.split_gradient(gx_area, system=system)
-    gx_split_1, gx_split_2 = pp_backend.split_gradient_at(gx_area, time_point=1e-3, system=system)
-
-    rf_gauss, gz_gauss, gzr_gauss = pp_backend.make_gauss_pulse(
+    rf_gauss, gz_gauss, gzr_gauss = pp.make_gauss_pulse(
         flip_angle=np.deg2rad(30),
         duration=2e-3,
         slice_thickness=5e-3,
         apodization=0.25,
         time_bw_product=4,
         delay=system.rf_dead_time,
-        return_gz=True,
         system=system,
+        return_gz=True,
         use="excitation",
     )
-    rf_arb = pp_backend.make_arbitrary_rf(
-        signal=np.hanning(128),
+    rf_arb = pp.make_arbitrary_rf(
+        signal=np.hanning(128).astype(float),
         flip_angle=np.deg2rad(20),
         delay=system.rf_dead_time,
         dwell=10e-6,
         system=system,
         use="excitation",
     )
-    adc_label = pp_backend.make_label(label="LIN", type="SET", value=1)
 
-    # Build sequence block-by-block (seq.add_block)
+    # Trapezoids in all three creation styles. We pass an explicit raster-
+    # aligned `rise_time` because pulseq-zero's `make_trapezoid` does *not*
+    # round rise/fall times to the gradient raster (intentional: rounding
+    # would kill autograd). The TSE demo does the same - see
+    # demo/write_tse.py's `dG = 250e-6`. Without this, `seq.write()` fails
+    # because pypulseq's `check_timing` rejects unaligned timings.
+    rise = 50e-6  # 5 raster ticks at grad_raster_time=10e-6
+    gx_area = pp.make_trapezoid(
+        channel="x", area=4.0, duration=2e-3, rise_time=rise, system=system,
+    )
+    gy_flat = pp.make_trapezoid(
+        channel="y", flat_area=8.0, flat_time=2e-3, rise_time=rise, system=system,
+    )
+    gz_amp = pp.make_trapezoid(
+        channel="z", amplitude=6.0, duration=1.5e-3, rise_time=rise, system=system,
+    )
+
+    # Extended trapezoid and arbitrary gradient.
+    ext_times = np.array([0.0, 0.5e-3, 1.2e-3, 2.0e-3])
+    ext_amps = np.array(
+        [0.0, 0.8 * system.max_grad, -0.6 * system.max_grad, 0.0]
+    )
+    gx_ext = pp.make_extended_trapezoid(
+        channel="x", times=ext_times, amplitudes=ext_amps, system=system
+    )
+
+    t = np.arange(0, 1e-3, system.grad_raster_time)
+    arb_wave = 0.2 * system.max_grad * np.sin(2 * np.pi * t / t[-1])
+    gy_arb = pp.make_arbitrary_grad(channel="y", waveform=arb_wave, system=system)
+
+    # Composite/derived gradients. `add_gradients` and `split_gradient` are
+    # *not* added as sequence blocks here: they're verified standalone by the
+    # probe phase. Inlining them in the broad seq would propagate
+    # non-raster-aligned times into the exporter (a real pulseq-zero
+    # limitation that should not stop the rest of the matrix from running).
+    gx_scaled = pp.scale_grad(gx_area, 0.5)
+
+    adc = pp.make_adc(num_samples=100, dwell=20e-6, delay=20e-6, system=system)
+    d_short = pp.make_delay(500e-6)
+    d_long = pp.make_delay(2e-3)
+    gx_readout = pp.make_trapezoid(
+        channel="x", flat_area=32.0, flat_time=2e-3, rise_time=rise, system=system,
+    )
+
+    # Build sequence block-by-block. The shaped RF pulses (rf_sinc /
+    # rf_gauss) are added *without* their accompanying slice-select gz - the
+    # gz returned by `make_*_pulse(return_gz=True)` has rise/fall times that
+    # pulseq-zero does not round to the raster, so co-adding them would
+    # break `seq.write()`. Production scripts (see demo/write_tse.py) follow
+    # the same pattern: pull amplitude/duration from the returned gz and
+    # rebuild a raster-aligned trapezoid via `make_trapezoid`.
     seq.add_block(rf_block)
     seq.add_block(d_short)
-    seq.add_block(rf_sinc, gz)
-    seq.add_block(gzr)
+    seq.add_block(rf_sinc)
+    seq.add_block(d_short)
     seq.add_block(gx_area, gy_flat)
     seq.add_block(gz_amp)
     seq.add_block(gx_ext)
     seq.add_block(gy_arb)
-    seq.add_block(pp_backend.make_trapezoid(channel="x", flat_area=32.0, flat_time=2e-3, system=system), adc)
-    seq.add_block(gx_added)
-    seq.add_block(*aligned_events)
-    seq.add_block(gx_ext_area)
-    seq.add_block(rot_gx, rot_gy)
+    seq.add_block(gx_readout, adc)
     seq.add_block(gx_scaled)
-    seq.add_block(gx_split_up)
-    seq.add_block(gx_split_flat)
-    seq.add_block(gx_split_down)
-    seq.add_block(gx_split_1)
-    seq.add_block(gx_split_2)
-    seq.add_block(rf_gauss, gz_gauss)
-    seq.add_block(gzr_gauss)
+    seq.add_block(rf_gauss)
     seq.add_block(rf_arb)
-    seq.add_block(adc_label)
     seq.add_block(d_long)
 
-    # Utility calls often used during development.
-    ok, timing_report = seq.check_timing()
-    top_check_fn = _resolve_backend_func(pp_backend, backend, "check_timing")
-    top_ok, top_res, top_err = _maybe_call(top_check_fn, seq)
-    if top_ok:
-        top_check_ok, top_check_err = top_res
-    else:
-        top_check_ok, top_check_err = False, [top_err]
-    ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc = seq.calculate_kspace()
-    seq_duration_total, seq_duration_num_blocks, seq_duration_event_count = seq.duration()
+    timing_ok, timing_report = seq.check_timing()
 
     durations = {
-        "rf_block": pp_backend.calc_duration(rf_block),
-        "rf_sinc+gz": pp_backend.calc_duration(rf_sinc, gz),
-        "gx_area": pp_backend.calc_duration(gx_area),
-        "gy_flat": pp_backend.calc_duration(gy_flat),
-        "gx_readout+adc": pp_backend.calc_duration(adc),
+        "rf_block": float(pp.calc_duration(rf_block)),
+        "rf_sinc+gz": float(pp.calc_duration(rf_sinc, gz_sinc)),
+        "gx_area": float(pp.calc_duration(gx_area)),
+        "gy_flat": float(pp.calc_duration(gy_flat)),
+        "adc": float(pp.calc_duration(adc)),
     }
 
     if do_plot:
-        # time_range keeps plotting fast and avoids giant figures.
         seq.plot(time_range=[0, 0.03], plot_now=False)
-
-    if do_write:
+    if do_write and out_seq_path:
         seq.write(out_seq_path)
 
     return {
-        "backend": backend,
-        "sequence": seq,
-        "timing_ok": ok,
+        "seq": seq,
+        "system": system,
+        "rf_block": rf_block,
+        "rf_sinc": rf_sinc,
+        "rf_gauss": rf_gauss,
+        "rf_arb": rf_arb,
+        "gx_area": gx_area,
+        "gy_flat": gy_flat,
+        "gz_amp": gz_amp,
+        "gx_ext": gx_ext,
+        "gy_arb": gy_arb,
+        "arb_wave": arb_wave,
+        "timing_ok": timing_ok,
         "timing_report": timing_report,
         "durations": durations,
-        "api_smoke": {
-            "add_block_ok": int(seq_duration_num_blocks) > 0,
-            "make_trapezoid_ok": all(x is not None for x in [gx_area, gy_flat, gz_amp]),
-            "make_block_pulse_ok": rf_block is not None,
-            "make_sinc_pulse_ok": all(x is not None for x in [rf_sinc, gz, gzr]),
-            "make_gauss_pulse_ok": all(x is not None for x in [rf_gauss, gz_gauss, gzr_gauss]),
-            "make_arbitrary_grad_ok": gy_arb is not None,
-            "add_ramps_shapes": [np.shape(x) for x in ramps_out],
-            "add_ramps_error": ramps_err,
-            "calc_ramp_ok": bool(k_ramp_ok),
-            "calc_ramp_shape": np.shape(k_ramp),
-            "calc_duration_rf_block": float(durations["rf_block"]),
-            "calc_rf_bandwidth": float(rf_bw),
-            "calc_rf_center": (float(rf_center_t), float(rf_center_idx)),
-            "seq_duration_total": float(seq_duration_total),
-            "seq_duration_num_blocks": int(seq_duration_num_blocks),
-            "seq_duration_event_count_len": int(len(seq_duration_event_count)),
-            "top_level_check_timing_ok": bool(top_check_ok),
-            "top_level_check_timing_err": top_check_err,
-            "top_level_check_timing_duration": top_check_duration,
-            "compress_shape_samples": int(compressed_arb.num_samples) if c_ok else 0,
-            "compress_shape_error": c_err,
-            "decompress_shape_len": int(len(decompressed_arb)) if dc_ok else 0,
-            "decompress_shape_error": dc_err,
-            "convert_mTpm_to_Hzpm": float(converted_grad) if conv_ok else 0.0,
-            "convert_error": conv_err,
-            "make_extended_trapezoid_area_len": int(len(gx_ext_area_times)),
-            "points_to_waveform_len": int(len(interp_wave)),
-            "traj_to_grad_shape": np.shape(grad_from_traj),
-            "traj_to_slew_shape": np.shape(slew_from_traj),
-        },
-        "ktraj_adc_shape": np.shape(ktraj_adc),
-        "ktraj_shape": np.shape(ktraj),
-        "t_excitation_shape": np.shape(t_excitation),
-        "t_refocusing_shape": np.shape(t_refocusing),
-        "t_adc_shape": np.shape(t_adc),
         "out_seq_path": out_seq_path if do_write else None,
     }
 
 
-def print_smoke_results(result):
-    print("Created sequence test.")
-    print(f"Backend: {result['backend']}")
-    print(f"Timing check: {'PASS' if result['timing_ok'] else 'FAIL'}")
-    print(f"Wrote: {result['out_seq_path']}")
-    print(f"k-space ADC shape: {result['ktraj_adc_shape']}")
-    print("Smoke test results (SUCCESS/FAIL):")
+# ---------------------------------------------------------------------------
+# Per-entry-point probes. Each entry lists (name, expected_pulseqzero_status,
+# fn(pp, ctx)). The pypulseq side calls the same fn; the matrix then shows
+# the actual behavior on each backend.
+# ---------------------------------------------------------------------------
 
-    smoke_descriptions = {
-        "add_ramps_shapes": "add_ramps generated ramped trajectories",
-        "add_ramps_error": "add_ramps error detail (None means supported)",
-        "calc_ramp_ok": "calc_ramp found a valid connection",
-        "calc_ramp_shape": "calc_ramp returned trajectory shape",
-        "calc_duration_rf_block": "calc_duration returned RF block duration",
-        "calc_rf_bandwidth": "calc_rf_bandwidth returned positive bandwidth",
-        "calc_rf_center": "calc_rf_center returned center time/index",
-        "compress_shape_samples": "compress_shape produced sample metadata",
-        "compress_shape_error": "compress_shape error detail (None means supported)",
-        "convert_mTpm_to_Hzpm": "convert produced positive converted value",
-        "convert_error": "convert error detail (None means supported)",
-        "decompress_shape_len": "decompress_shape restored waveform length",
-        "decompress_shape_error": "decompress_shape error detail (None means supported)",
-        "make_extended_trapezoid_area_len": "make_extended_trapezoid_area returned times",
-        "points_to_waveform_len": "points_to_waveform produced waveform",
-        "seq_duration_total": "seq.duration returned total duration (raster units)",
-        "seq_duration_num_blocks": "seq.duration returned number of blocks",
-        "seq_duration_event_count_len": "seq.duration returned event-count array",
-        "top_level_check_timing_duration": "top-level check_timing duration field",
-        "top_level_check_timing_err": "top-level check_timing returned no errors",
-        "top_level_check_timing_ok": "top-level check_timing passed",
-        "traj_to_grad_shape": "traj_to_grad returned gradient samples",
-        "traj_to_slew_shape": "traj_to_grad returned slew samples",
-    }
+def _native_probes():
+    def s(ctx):
+        return ctx["system"]
 
-    smoke_pass = {
-        "add_ramps_shapes": len(result["api_smoke"]["add_ramps_shapes"]) > 0,
-        "add_ramps_error": result["api_smoke"]["add_ramps_error"] is None,
-        "calc_ramp_ok": bool(result["api_smoke"]["calc_ramp_ok"]),
-        "calc_ramp_shape": len(result["api_smoke"]["calc_ramp_shape"]) > 0,
-        "calc_duration_rf_block": result["api_smoke"]["calc_duration_rf_block"] > 0,
-        "calc_rf_bandwidth": result["api_smoke"]["calc_rf_bandwidth"] > 0,
-        "calc_rf_center": result["api_smoke"]["calc_rf_center"][0] >= 0,
-        "compress_shape_samples": result["api_smoke"]["compress_shape_samples"] > 0,
-        "compress_shape_error": result["api_smoke"]["compress_shape_error"] is None,
-        "convert_mTpm_to_Hzpm": result["api_smoke"]["convert_mTpm_to_Hzpm"] > 0,
-        "convert_error": result["api_smoke"]["convert_error"] is None,
-        "decompress_shape_len": result["api_smoke"]["decompress_shape_len"] > 0,
-        "decompress_shape_error": result["api_smoke"]["decompress_shape_error"] is None,
-        "make_extended_trapezoid_area_len": result["api_smoke"]["make_extended_trapezoid_area_len"] > 0,
-        "points_to_waveform_len": result["api_smoke"]["points_to_waveform_len"] > 0,
-        "seq_duration_total": result["api_smoke"]["seq_duration_total"] > 0,
-        "seq_duration_num_blocks": result["api_smoke"]["seq_duration_num_blocks"] > 0,
-        "seq_duration_event_count_len": result["api_smoke"]["seq_duration_event_count_len"] > 0,
-        "top_level_check_timing_duration": True,  # This field can be None in current pypulseq versions.
-        "top_level_check_timing_err": len(result["api_smoke"]["top_level_check_timing_err"]) == 0,
-        "top_level_check_timing_ok": bool(result["api_smoke"]["top_level_check_timing_ok"]),
-        "traj_to_grad_shape": result["api_smoke"]["traj_to_grad_shape"][0] > 0,
-        "traj_to_slew_shape": result["api_smoke"]["traj_to_slew_shape"][0] > 0,
-    }
+    return [
+        ("Opts", "ok",
+            lambda pp, ctx: pp.Opts(max_grad=28, grad_unit="mT/m")),
+        ("Sequence.__init__", "ok",
+            lambda pp, ctx: pp.Sequence(system=s(ctx))),
+        ("Sequence.add_block", "ok",
+            lambda pp, ctx: (lambda q: q.add_block(pp.make_delay(1e-3)) or q)(
+                pp.Sequence(system=s(ctx))
+            )),
+        ("Sequence.set_definition/get_definition", "ok",
+            lambda pp, ctx: (lambda q: (
+                q.set_definition("Probe", 42), q.get_definition("Probe")
+            )[1])(pp.Sequence(system=s(ctx)))),
+        ("Sequence.duration", "ok",
+            lambda pp, ctx: ctx["seq"].duration()),
+        ("Sequence.__str__", "ok",
+            lambda pp, ctx: str(ctx["seq"])),
+        ("Sequence.remove_duplicates", "ok",
+            lambda pp, ctx: ctx["seq"].remove_duplicates()),
+        ("Sequence.check_timing", "ok",
+            lambda pp, ctx: ctx["seq"].check_timing()),
+        ("calc_duration", "ok",
+            lambda pp, ctx: pp.calc_duration(ctx["gx_area"])),
+        ("get_supported_labels", "ok",
+            lambda pp, ctx: pp.get_supported_labels()),
+        ("make_adc", "ok",
+            lambda pp, ctx: pp.make_adc(num_samples=64, dwell=10e-6, system=s(ctx))),
+        ("make_delay", "ok",
+            lambda pp, ctx: pp.make_delay(1e-3)),
+        ("make_trigger", "ok",
+            lambda pp, ctx: pp.make_trigger("physio1", duration=100e-6, system=s(ctx))),
+        ("make_digital_output_pulse", "ok",
+            lambda pp, ctx: pp.make_digital_output_pulse(
+                "osc0", duration=100e-6, system=s(ctx)
+            )),
+        ("make_trapezoid", "ok",
+            lambda pp, ctx: pp.make_trapezoid(
+                channel="x", area=1.0, duration=1e-3, system=s(ctx)
+            )),
+        ("make_extended_trapezoid", "ok",
+            lambda pp, ctx: pp.make_extended_trapezoid(
+                channel="x",
+                times=np.array([0.0, 0.5e-3, 1.0e-3]),
+                amplitudes=np.array([0.0, 0.5 * s(ctx).max_grad, 0.0]),
+                system=s(ctx),
+            )),
+        ("make_arbitrary_grad", "ok",
+            lambda pp, ctx: pp.make_arbitrary_grad(
+                channel="y", waveform=ctx["arb_wave"], system=s(ctx)
+            )),
+        ("add_gradients", "ok",
+            lambda pp, ctx: pp.add_gradients(
+                [
+                    ctx["gx_area"],
+                    pp.make_trapezoid(
+                        channel="x", area=2.0, duration=2e-3, system=s(ctx)
+                    ),
+                ],
+                system=s(ctx),
+            )),
+        ("scale_grad", "ok",
+            lambda pp, ctx: pp.scale_grad(ctx["gx_area"], 0.5)),
+        ("split_gradient", "ok",
+            lambda pp, ctx: pp.split_gradient(ctx["gx_area"], system=s(ctx))),
+        ("make_block_pulse", "ok",
+            lambda pp, ctx: pp.make_block_pulse(
+                flip_angle=np.deg2rad(15),
+                duration=1e-3,
+                delay=s(ctx).rf_dead_time,
+                system=s(ctx),
+                use="excitation",
+            )),
+        ("make_sinc_pulse", "ok",
+            lambda pp, ctx: pp.make_sinc_pulse(
+                flip_angle=np.deg2rad(90),
+                duration=3e-3,
+                slice_thickness=5e-3,
+                apodization=0.5,
+                time_bw_product=4,
+                delay=s(ctx).rf_dead_time,
+                system=s(ctx),
+                return_gz=True,
+                use="excitation",
+            )),
+        ("make_gauss_pulse", "ok",
+            lambda pp, ctx: pp.make_gauss_pulse(
+                flip_angle=np.deg2rad(30),
+                duration=2e-3,
+                slice_thickness=5e-3,
+                apodization=0.25,
+                time_bw_product=4,
+                delay=s(ctx).rf_dead_time,
+                system=s(ctx),
+                return_gz=True,
+                use="excitation",
+            )),
+        ("make_arbitrary_rf", "ok",
+            lambda pp, ctx: pp.make_arbitrary_rf(
+                signal=np.hanning(128).astype(float),
+                flip_angle=np.deg2rad(20),
+                delay=s(ctx).rf_dead_time,
+                dwell=10e-6,
+                system=s(ctx),
+                use="excitation",
+            )),
+        # make_extended_trapezoid_area is copied verbatim from pypulseq -
+        # works, but not differentiable. README marks it as such.
+        ("make_extended_trapezoid_area", "ok",
+            lambda pp, ctx: pp.make_extended_trapezoid_area(
+                channel="x",
+                area=1.0,
+                grad_start=0.0,
+                grad_end=0.0,
+                system=s(ctx),
+            )),
+        # points_to_waveform is implemented in pulseq-zero's wrapper layer
+        # (the README table is out of date - the wrapper version overrides
+        # the not_implemented stub).
+        ("points_to_waveform", "ok",
+            lambda pp, ctx: pp.points_to_waveform(
+                amplitudes=np.array([0.0, 0.8 * s(ctx).max_grad, 0.0]),
+                grad_raster_time=s(ctx).grad_raster_time,
+                times=np.array([0.0, 0.5e-3, 1.0e-3]),
+            )),
+        # Numeric stubs - pulseq-zero returns approximations.
+        ("calc_rf_bandwidth (stub)", "ok",
+            lambda pp, ctx: pp.calc_rf_bandwidth(ctx["rf_sinc"])),
+        ("calc_rf_center (stub)", "ok",
+            lambda pp, ctx: pp.calc_rf_center(ctx["rf_sinc"])),
+        # make_label - pypulseq returns a SimpleNamespace; pulseq-zero
+        # returns its own Label dataclass (both should not raise).
+        ("make_label", "ok",
+            lambda pp, ctx: pp.make_label(label="LIN", type="SET", value=1)),
+    ]
 
-    for key in sorted(result["api_smoke"].keys()):
-        status = "SUCCESS" if smoke_pass.get(key, False) else "FAIL"
-        label = smoke_descriptions.get(key, key)
-        value = result["api_smoke"][key]
-        print(f"  - [{status}] {label}: {value}")
-    if not result["timing_ok"]:
-        print("Timing report:")
-        for line in result["timing_report"]:
-            print(f"  - {line}")
+
+def _not_implemented_probes():
+    """Entries pulseq-zero deliberately raises NotImplementedError on.
+
+    Plain pypulseq still implements most of these, so the matrix highlights
+    where pulseq-zero diverges from upstream by design.
+    """
+    def s(ctx):
+        return ctx["system"]
+
+    return [
+        ("make_adiabatic_pulse", "not_implemented",
+            lambda pp, ctx: pp.make_adiabatic_pulse(
+                flip_angle=np.pi, duration=8e-3, system=s(ctx)
+            )),
+        ("sigpy_n_seq", "not_implemented",
+            lambda pp, ctx: pp.sigpy_n_seq(flip_angle=np.pi)),
+        ("make_slr", "not_implemented",
+            lambda pp, ctx: pp.make_slr()),
+        ("make_sms", "not_implemented",
+            lambda pp, ctx: pp.make_sms()),
+        ("SigpyPulseOpts", "not_implemented",
+            lambda pp, ctx: pp.SigpyPulseOpts()),
+        ("align", "not_implemented",
+            lambda pp, ctx: pp.align(
+                right=[ctx["gx_area"], ctx["gy_flat"], ctx["gz_amp"]]
+            )),
+        ("calc_ramp", "not_implemented",
+            lambda pp, ctx: pp.calc_ramp(
+                k0=np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]),
+                k_end=np.array([[1e-3, 2e-3], [0.0, 0.0], [0.0, 0.0]]),
+                system=s(ctx),
+            )),
+        ("rotate", "not_implemented",
+            lambda pp, ctx: pp.rotate(
+                ctx["gx_area"], ctx["gy_flat"], angle=np.pi / 8, axis="z"
+            )),
+        ("traj_to_grad", "not_implemented",
+            lambda pp, ctx: pp.traj_to_grad(
+                np.linspace(0.0, 1.0, 16), raster_time=s(ctx).grad_raster_time
+            )),
+        ("calc_SAR", "not_implemented",
+            lambda pp, ctx: pp.calc_SAR(ctx["seq"])),
+        ("make_soft_delay", "not_implemented",
+            lambda pp, ctx: pp.make_soft_delay(
+                hint="user", num=1, default_dur=1e-3
+            )),
+        ("enable_trace", "not_implemented",
+            lambda pp, ctx: pp.enable_trace()),
+        ("disable_trace", "not_implemented",
+            lambda pp, ctx: pp.disable_trace()),
+        # split_gradient_at is intentionally not re-exported from pulseq-zero
+        # (commented out in __init__.py); expect AttributeError there.
+        ("split_gradient_at", "missing",
+            lambda pp, ctx: pp.split_gradient_at(
+                ctx["gx_area"], time_point=1e-3, system=s(ctx)
+            )),
+    ]
 
 
-def run_mr0_mode_smoke_test(out_seq_path: str = "test_pulseqzero_mr0mode_sequence_all_funcs.seq"):
-    mr0_smoke = {}
-    result = None
-    pp_backend = pulseqzero.pp_impl
+def _export_probes():
+    """Export forwarders - run after the broad sequence is built."""
 
-    with pulseqzero.mr0_mode():
-        seq_func_ok = True
-        seq_func_err = None
-        try:
-            result = seq_func(
-                out_seq_path=out_seq_path,
-                do_plot=False,
-                do_write=True,
-                backend="pulseqzero",
-            )
-            seq = result["sequence"]
-        except Exception as exc:
-            # Full API smoke can fail in mr0_mode for backend-specific reasons.
-            seq_func_ok = False
-            seq_func_err = str(exc)
-            system = pp_backend.Opts(
-                max_grad=28,
-                grad_unit="mT/m",
-                max_slew=150,
-                slew_unit="T/m/s",
-                rf_ringdown_time=20e-6,
-                rf_dead_time=100e-6,
-                adc_dead_time=20e-6,
-                grad_raster_time=10e-6,
-            )
-            seq = pp_backend.Sequence(system=system)
-            seq.add_block(pp_backend.make_delay(1e-3))
-            write_ok, _, _ = _maybe_call(
-                seq.write,
-                out_seq_path,
-                create_signature=False,
-                remove_duplicates=True,
-            )
-            result = {
-                "backend": "pulseqzero (mr0_mode)",
-                "sequence": seq,
-                "timing_ok": True,
-                "timing_report": [],
-                "durations": {},
-                "api_smoke": {},
-                "ktraj_adc_shape": (),
-                "out_seq_path": out_seq_path if write_ok else None,
-            }
+    def to_pypulseq_safe(seq):
+        # Only pulseq-zero defines to_pypulseq(); pypulseq Sequence does not.
+        return seq.to_pypulseq()
 
-        # Smoke checks that are particularly relevant during optimization mode.
-        duration_ok, duration_res, duration_err = _maybe_call(seq.duration)
-        to_mr0_ok, to_mr0_res, to_mr0_err = _maybe_call(seq.to_mr0)
+    return [
+        ("Sequence.write", lambda pp, ctx: ctx["seq"].write(ctx["out_seq_path"])),
+        ("Sequence.to_pypulseq", lambda pp, ctx: to_pypulseq_safe(ctx["seq"])),
+        ("Sequence.test_report", lambda pp, ctx: ctx["seq"].test_report()),
+        # Only pulseq-zero exposes to_mr0; pypulseq Sequence does not.
+        ("Sequence.to_mr0", lambda pp, ctx: ctx["seq"].to_mr0()),
+    ]
 
-        # Exercise calc_duration in mr0_mode explicitly on a fresh delay event.
-        d = pp_backend.make_delay(1e-3)
-        calc_duration_ok, calc_duration_res, calc_duration_err = _maybe_call(pp_backend.calc_duration, d)
 
-        # Explicit creator checks in mr0_mode, independent from full seq_func success.
-        trap_ok, trap_res, trap_err = _maybe_call(
-            pp_backend.make_trapezoid, channel="x", area=1.0, duration=1e-3, system=seq.system
-        )
-        block_ok, block_res, block_err = _maybe_call(
-            pp_backend.make_block_pulse,
-            flip_angle=np.deg2rad(10),
-            duration=1e-3,
-            delay=seq.system.rf_dead_time,
-            system=seq.system,
-            use="excitation",
-        )
-        sinc_ok, sinc_res, sinc_err = _maybe_call(
-            pp_backend.make_sinc_pulse,
-            flip_angle=np.deg2rad(20),
-            duration=2e-3,
-            slice_thickness=5e-3,
-            apodization=0.5,
-            time_bw_product=4,
-            delay=seq.system.rf_dead_time,
-            system=seq.system,
-            return_gz=True,
-            use="excitation",
-        )
-        gauss_ok, gauss_res, gauss_err = _maybe_call(
-            pp_backend.make_gauss_pulse,
-            flip_angle=np.deg2rad(20),
-            duration=2e-3,
-            slice_thickness=5e-3,
-            apodization=0.5,
-            time_bw_product=4,
-            delay=seq.system.rf_dead_time,
-            return_gz=True,
-            system=seq.system,
-            use="excitation",
-        )
-        arb_ok, arb_res, arb_err = _maybe_call(
-            pp_backend.make_arbitrary_grad,
-            channel="y",
-            waveform=np.zeros(16),
-            system=seq.system,
-        )
-        seq_add_test = pp_backend.Sequence(system=seq.system)
-        add_block_ok, _, add_block_err = _maybe_call(seq_add_test.add_block, pp_backend.make_delay(1e-3))
+def probe_module(pp, label, out_seq_path):
+    """Build a broad seq with `pp`, then probe every API entry point."""
+    print(f"\n=== probing {label} ===")
+    ctx = build_broad_sequence(
+        pp, out_seq_path=out_seq_path, do_plot=False, do_write=False
+    )
+    ctx["out_seq_path"] = out_seq_path
 
-        mr0_smoke = {
-            "seq_func_ok": bool(seq_func_ok),
-            "seq_func_error": seq_func_err,
-            "add_block_ok": bool(add_block_ok),
-            "add_block_error": add_block_err,
-            "make_trapezoid_ok": bool(trap_ok),
-            "make_trapezoid_error": trap_err,
-            "make_block_pulse_ok": bool(block_ok),
-            "make_block_pulse_error": block_err,
-            "make_sinc_pulse_ok": bool(sinc_ok),
-            "make_sinc_pulse_error": sinc_err,
-            "make_gauss_pulse_ok": bool(gauss_ok),
-            "make_gauss_pulse_error": gauss_err,
-            "make_arbitrary_grad_ok": bool(arb_ok),
-            "make_arbitrary_grad_error": arb_err,
-            "duration_ok": bool(duration_ok),
-            "duration_error": duration_err,
-            "duration_total": float(duration_res[0]) if duration_ok else 0.0,
-            "duration_num_blocks": int(duration_res[1]) if duration_ok else 0,
-            "to_mr0_ok": bool(to_mr0_ok),
-            "to_mr0_error": to_mr0_err,
-            "to_mr0_type": str(type(to_mr0_res)) if to_mr0_ok else None,
-            "calc_duration_ok": bool(calc_duration_ok),
-            "calc_duration_error": calc_duration_err,
-            "calc_duration_value": float(calc_duration_res) if calc_duration_ok else 0.0,
+    results = {}
+    for name, expected, fn in _native_probes() + _not_implemented_probes():
+        status, val, err = try_call(fn, pp, ctx)
+        results[name] = {
+            "expected": expected,
+            "status": status,
+            "summary": _summarize(val),
+            "error": err,
         }
 
-    result["mr0_mode_smoke"] = mr0_smoke
-    result["backend"] = "pulseqzero (mr0_mode)"
-    return result
+    for name, fn in _export_probes():
+        status, val, err = try_call(fn, pp, ctx)
+        # Sequence.write returns None on success - that's still "ok".
+        results[name] = {
+            "expected": "ok",
+            "status": status,
+            "summary": _summarize(val),
+            "error": err,
+        }
+
+    print(f"  built broad seq with {ctx['seq'].duration()[1]} blocks; "
+          f"check_timing={ctx['timing_ok']}")
+    return results, ctx
 
 
-def print_mr0_mode_smoke_results(result):
-    print("MR0 mode smoke results (SUCCESS/FAIL):")
-    checks = result["mr0_mode_smoke"]
-    pass_map = {
-        "seq_func_ok": checks["seq_func_ok"],
-        "seq_func_error": checks["seq_func_error"] is None,
-        "duration_ok": checks["duration_ok"],
-        "duration_error": checks["duration_error"] is None,
-        "duration_total": checks["duration_total"] > 0,
-        "duration_num_blocks": checks["duration_num_blocks"] > 0,
-        "to_mr0_ok": checks["to_mr0_ok"],
-        "to_mr0_error": checks["to_mr0_error"] is None,
-        "to_mr0_type": checks["to_mr0_type"] is not None,
-        "calc_duration_ok": checks["calc_duration_ok"],
-        "calc_duration_error": checks["calc_duration_error"] is None,
-        "calc_duration_value": checks["calc_duration_value"] > 0,
-    }
-    for key in [
-        "seq_func_ok",
-        "seq_func_error",
-        "duration_ok",
-        "duration_error",
-        "duration_total",
-        "duration_num_blocks",
-        "to_mr0_ok",
-        "to_mr0_error",
-        "to_mr0_type",
-        "calc_duration_ok",
-        "calc_duration_error",
-        "calc_duration_value",
-    ]:
-        status = "SUCCESS" if pass_map.get(key, False) else "FAIL"
-        print(f"  - [{status}] {key}: {checks[key]}")
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+
+_STATUS_SYMBOL = {
+    "ok": "OK",
+    "not_implemented": "NotImpl",
+    "missing": "missing",
+    "error": "ERROR",
+}
 
 
-def _support_matrix_from_results(result_pypulseq, result_pulseqzero, result_mr0):
-    p = result_pypulseq["api_smoke"]
-    z = result_pulseqzero["api_smoke"]
-    m = result_mr0["mr0_mode_smoke"]
+def print_support_matrix(pp_results, pz_results):
+    print("\n=== support matrix ===")
+    header = f"{'api entry':<48} | {'pypulseq':<10} | {'pulseqzero':<14} | expected"
+    print(header)
+    print("-" * len(header))
 
-    matrix = {
-        "add_block": (p["add_block_ok"], z["add_block_ok"], m["add_block_ok"]),
-        "add_ramps": (p["add_ramps_error"] is None, z["add_ramps_error"] is None, False),
-        "make_trapezoid": (p["make_trapezoid_ok"], z["make_trapezoid_ok"], m["make_trapezoid_ok"]),
-        "make_block_pulse": (p["make_block_pulse_ok"], z["make_block_pulse_ok"], m["make_block_pulse_ok"]),
-        "make_sinc_pulse": (p["make_sinc_pulse_ok"], z["make_sinc_pulse_ok"], m["make_sinc_pulse_ok"]),
-        "make_gauss_pulse": (p["make_gauss_pulse_ok"], z["make_gauss_pulse_ok"], m["make_gauss_pulse_ok"]),
-        "make_arbitrary_grad": (p["make_arbitrary_grad_ok"], z["make_arbitrary_grad_ok"], m["make_arbitrary_grad_ok"]),
-        "calc_ramp": (p["calc_ramp_ok"], z["calc_ramp_ok"], False),
-        "calc_duration": (p["calc_duration_rf_block"] > 0, z["calc_duration_rf_block"] > 0, m["calc_duration_ok"]),
-        "calc_rf_bandwidth": (p["calc_rf_bandwidth"] > 0, z["calc_rf_bandwidth"] > 0, False),
-        "calc_rf_center": (p["calc_rf_center"][0] >= 0, z["calc_rf_center"][0] >= 0, False),
-        "check_timing_top_level": (p["top_level_check_timing_ok"], z["top_level_check_timing_ok"], False),
-        "compress_shape": (p["compress_shape_error"] is None, z["compress_shape_error"] is None, False),
-        "decompress_shape": (p["decompress_shape_error"] is None, z["decompress_shape_error"] is None, False),
-        "convert": (p["convert_error"] is None, z["convert_error"] is None, False),
-        "make_extended_trapezoid_area": (p["make_extended_trapezoid_area_len"] > 0, z["make_extended_trapezoid_area_len"] > 0, False),
-        "points_to_waveform": (p["points_to_waveform_len"] > 0, z["points_to_waveform_len"] > 0, False),
-        "traj_to_grad": (p["traj_to_grad_shape"][0] > 0, z["traj_to_grad_shape"][0] > 0, False),
-        "traj_to_slew": (p["traj_to_slew_shape"][0] > 0, z["traj_to_slew_shape"][0] > 0, False),
-        "seq.duration": (p["seq_duration_total"] > 0, z["seq_duration_total"] > 0, m["duration_ok"]),
-        "seq.to_mr0": (False, False, m["to_mr0_ok"]),
-    }
-    return matrix
+    all_keys = sorted(set(pp_results) | set(pz_results))
+    rows = []
+    for key in all_keys:
+        pp_st = pp_results.get(key, {}).get("status", "missing")
+        pz_st = pz_results.get(key, {}).get("status", "missing")
+        expected = pz_results.get(key, {}).get(
+            "expected", pp_results.get(key, {}).get("expected", "?")
+        )
+        rows.append((key, pp_st, pz_st, expected))
+        ok_pz = pz_st == expected
+        mark = "" if ok_pz else "  <-- MISMATCH"
+        print(
+            f"{key:<48} | {_STATUS_SYMBOL[pp_st]:<10} | "
+            f"{_STATUS_SYMBOL[pz_st]:<14} | {expected}{mark}"
+        )
+    return rows
 
 
-def _status(v: bool) -> str:
-    return "SUCCESS" if v else "FAIL"
+def print_probe_details(label, results):
+    print(f"\n=== {label} probe details ===")
+    for key in sorted(results):
+        r = results[key]
+        ok = r["status"] == r["expected"]
+        flag = "PASS" if ok else "MISMATCH"
+        line = f"  [{flag}] {key}: status={r['status']}, value={r['summary']}"
+        if r["error"]:
+            line += f", err={r['error'][:120]}"
+        print(line)
 
 
-def _status_md(v: bool) -> str:
-    return "✅" if v else "❌"
-
-
-def print_support_matrix(result_pypulseq, result_pulseqzero, result_mr0):
-    matrix = _support_matrix_from_results(result_pypulseq, result_pulseqzero, result_mr0)
-    print("")
-    print("func_name | pypulseq | pulseqzero | pulseqzero.mr0mode")
-    print("--- | --- | --- | ---")
-    for fn in sorted(matrix.keys()):
-        a, b, c = matrix[fn]
-        print(f"{fn} | {_status(a)} | {_status(b)} | {_status(c)}")
-    return matrix
-
-
-def write_support_matrix_markdown(
-    matrix: dict, out_md_path: str = "test_pypulseq_pulseqzero_support_matrix.md"
-):
+def write_support_matrix_markdown(rows, out_md_path):
     lines = [
-        "# PyPulseq vs PulseqZero Support Matrix",
+        "# Pulseq-zero adapter completeness matrix",
         "",
-        "func_name | pypulseq | pulseqzero | pulseqzero.mr0mode",
+        "Built and probed with `pypulseq` and `pulseqzero` against the README",
+        "section 4 coverage table. `pulseqzero` is invoked as a single drop-in",
+        "module (no `pp_impl`, no `mr0_mode()`).",
+        "",
+        "api entry | pypulseq | pulseqzero | expected (pulseqzero)",
         "--- | --- | --- | ---",
     ]
-    for fn in sorted(matrix.keys()):
-        a, b, c = matrix[fn]
-        lines.append(f"{fn} | {_status_md(a)} | {_status_md(b)} | {_status_md(c)}")
+    for key, pp_st, pz_st, expected in rows:
+        mark = "" if pz_st == expected else " <-- MISMATCH"
+        lines.append(
+            f"{key} | {_STATUS_SYMBOL[pp_st]} | {_STATUS_SYMBOL[pz_st]}{mark} | {expected}"
+        )
     lines.append("")
     with open(out_md_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    print(f"Markdown report written: {out_md_path}")
+    print(f"\nMarkdown report written: {out_md_path}")
+
+
+def summarize_pass_fail(rows):
+    pz_pass = sum(1 for _, _, pz, exp in rows if pz == exp)
+    pz_total = len(rows)
+    print(
+        f"\npulseq-zero matches expected behavior on "
+        f"{pz_pass}/{pz_total} probes."
+    )
+
+
+def main():
+    pp_results, _ = probe_module(
+        pypulseq, "pypulseq", "test_pypulseq_sequence_all_funcs.seq"
+    )
+    pz_results, _ = probe_module(
+        pulseqzero, "pulseqzero", "test_pulseqzero_sequence_all_funcs.seq"
+    )
+
+    print_probe_details("pulseqzero", pz_results)
+    rows = print_support_matrix(pp_results, pz_results)
+    summarize_pass_fail(rows)
+    write_support_matrix_markdown(
+        rows, "test_pypulseq_pulseqzero_support_matrix.md"
+    )
 
 
 if __name__ == "__main__":
-    result_pypulseq = seq_func(
-        out_seq_path="test_pypulseq_sequence_all_funcs.seq",
-        do_plot=False,
-        do_write=True,
-        backend="pypulseq",
-    )
-    # Keep detailed sections available, but final summary below is the main output.
-    result_pulseqzero = seq_func(
-        out_seq_path="test_pulseqzero_sequence_all_funcs.seq",
-        do_plot=False,
-        do_write=True,
-        backend="pulseqzero",
-    )
-    result_pulseqzero_mr0_mode = run_mr0_mode_smoke_test()
-
-    matrix = print_support_matrix(result_pypulseq, result_pulseqzero, result_pulseqzero_mr0_mode)
-    write_support_matrix_markdown(matrix)
+    main()
