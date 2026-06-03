@@ -3,7 +3,7 @@ from typing import Optional
 from copy import deepcopy
 import numpy as np
 import torch
-from .events import Scalar, RfPulse, Event, Array
+from ..events import Scalar, RfPulse, Event, Array
 from pypulseq import Opts
 
 

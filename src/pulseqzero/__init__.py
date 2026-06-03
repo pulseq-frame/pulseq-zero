@@ -72,18 +72,15 @@ from pypulseq.supported_labels_rf_use import get_supported_rf_uses
 # differentiable math helper functions
 from .math import ceil, floor, round, round_half_up
 
-# simple pulseq helper functions made differentiable
-from .helpers import (
+from .wrapper.helpers import (
     calc_duration,
     calc_rf_bandwidth,
     calc_rf_center,
     align,
     traj_to_grad,
 )
-
-# the "meat" of pulseq-zero: differentiable impls of seq building funcs
-from .wrapper.make_adc import make_adc
 from .wrapper.make_basic import (
+    make_adc,
     make_delay,
     make_trigger,
     make_digital_output_pulse,
