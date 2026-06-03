@@ -108,9 +108,9 @@ from .wrapper.grad_funcs import (
 )
 from .wrapper.sequence import Sequence
 
-# No pulseq-zero support yet, calling will raise NotImplementedError.
-# This list should be eliminated before releasing 1.0
+# No pulseq-zero support, calling will raise NotImplementedError.
 from .not_implemented import (
+    # TODO: these two funtions must still be ported
     calc_ramp,
     rotate,
     # these will for sure not be supported (documented)

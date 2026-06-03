@@ -26,11 +26,12 @@ Additional information, to be integrated into the list below:
 ## dir(pypulseq)
 - [x] Opts                             **re-exported**
 - [ ] Sequence                          *sequence.py*
-  - [ ] adc_times
+  - [x] adc_times                      **re-export** **non-differentiable**
   - [x] add_block                      **native**
-  - [ ] calculate_gradient_spectrum
-  - [ ] calculate_kspace
-  - [ ] calculate_kspacePP
+  - [ ] apply_soft_delay
+  - [x] calculate_gradient_spectrum    **re-export** **non-differentiable**
+  - [x] calculate_kspace               **re-export** **non-differentiable**
+  - [-] calculate_kspacePP             **deprecated**
   - [x] calculate_pns                  **re-export**
   - [x] check_timing                   **re-export**
   - [x] duration                       **native**
@@ -43,7 +44,7 @@ Additional information, to be integrated into the list below:
   - [ ] get_extension_type_string
   - [ ] get_gradients
   - [ ] get_raw_block_content_IDs
-  - [ ] install
+  - [x] install                        **re-export**
   - [ ] mod_grad_axis
   - [x] paper_plot                     **re-export**
   - [x] plot                           **re-export**
@@ -55,7 +56,7 @@ Additional information, to be integrated into the list below:
   - [ ] register_soft_delay_event
   - [x] remove_duplicates              **native**
   - [ ] rf_from_lib_data
-  - [ ] rf_times
+  - [x] rf_times                       **re-export** **non-differentiable**
   - [ ] set_block
   - [x] set_definition                 **native**
   - [ ] set_extension_string_ID
@@ -65,7 +66,6 @@ Additional information, to be integrated into the list below:
   - [ ] version_revision
   - [ ] waveforms
   - [ ] waveforms_and_times
-  - [ ] waveforms_export
   - [x] write                          **re-export**
 - [-] SigpyPulseOpts                   **no sigpy support**
 - [x] add_gradients                     *grad_funcs.py*
@@ -74,7 +74,7 @@ Additional information, to be integrated into the list below:
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*
 - [ ] calc_ramp
-- [x] calc_rf_bandwidth                 *helpers.py* **non-differentiable re-export**
+- [x] calc_rf_bandwidth                 *helpers.py* **re-export** **non-differentiable**
 - [x] calc_rf_center                    *helpers.py*
 - [-] disable_trace                    **no trace support**
 - [-] enable_trace                     **no trace support**

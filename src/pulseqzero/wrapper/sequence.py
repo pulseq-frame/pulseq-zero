@@ -3,6 +3,7 @@ from ..wrapper import _n
 from copy import copy, deepcopy
 import MRzeroCore
 import pypulseq
+import numpy as np
 from pypulseq.utils.seq_plot import SeqPlot
 
 from typing import Optional
@@ -57,11 +58,30 @@ class Sequence:
     # Non-differentiable functions - pypulseq pass-through
     # =========================================================================
 
-    def check_timing(self, print_errors=False) -> tuple[bool, list[SimpleNamespace]]:
-        return self.to_pypulseq().check_timing(print_errors)
+    def adc_times(self, *args, **kwargs) -> tuple[np.ndarray, np.ndarray]:
+        return self.to_pypulseq().adc_times(*args, **kwargs)
+
+    def calculate_gradient_spectrum(
+        self, *args, **kwargs
+    ) -> tuple[list[np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
+        return self.to_pypulseq().calculate_gradient_spectrum(*args, **kwargs)
+
+    def calculate_kspace(
+        self, *args, **kwargs
+    ) -> tuple[np.ndarray, np.ndarray, list[float], list[float], np.ndarray]:
+        return self.to_pypulseq().calculate_kspace(*args, **kwargs)
+
+    def calculate_kspacePP(self, *args, **kwargs):
+        raise NotImplementedError("calculate_kspacePP has been deprecated")
 
     def calculate_pns(self, *args, **kwargs):
         return self.to_pypulseq().calculate_pns(*args, **kwargs)
+
+    def check_timing(self, *args, **kwargs) -> tuple[bool, list[SimpleNamespace]]:
+        return self.to_pypulseq().check_timing(*args, **kwargs)
+
+    def install(self, *args, **kwargs):
+        return self.to_pypulseq().install(*args, **kwargs)
 
     def paper_plot(self, *args, **kwargs):
         return self.to_pypulseq().paper_plot(*args, **kwargs)
@@ -69,11 +89,16 @@ class Sequence:
     def plot(self, *args, **kwargs) -> SeqPlot:
         return self.to_pypulseq().plot(*args, **kwargs)
 
-    def test_report(self) -> str:
-        return self.to_pypulseq().test_report()
-
     def read(self, *args, **kwargs):
         raise NotImplementedError("Cannot read .seq files in pulseq-zero")
+
+    def rf_times(
+        self, *args, **kwargs
+    ) -> tuple[list[float], np.ndarray, list[float], np.ndarray, np.ndarray]:
+        return self.to_pypulseq().rf_times(*args, **kwargs)
+
+    def test_report(self, *args, **kwargs) -> str:
+        return self.to_pypulseq().test_report(*args, **kwargs)
 
     def write(self, *args, **kwargs) -> str | None:
         return self.to_pypulseq().write(*args, **kwargs)
