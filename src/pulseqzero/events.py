@@ -249,5 +249,27 @@ class Delay:
         return self._pp_event
 
 
+@dataclass
+class SoftDelay:
+    hint: str
+    numID: Optional[int]
+    offset: Scalar
+    factor: Scalar
+    default_duration: Scalar  # used in some obscure block_duration code?
+
+    @property
+    def duration(self) -> Scalar:
+        return self.default_duration
+
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
+        return pp.make_soft_delay(
+            self.hint,
+            self.numID,
+            float(self.offset),
+            float(self.factor),
+            float(self.default_duration),
+        )
+
+
 # Type for all pulseq-zero event types
 Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay

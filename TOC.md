@@ -8,7 +8,6 @@ do not aim to mimic the exact sub-module structure.
 Methods are marked with one of the following:
 - [ ] still missing from pulseq-zero
 - [x] completed - has differentiable wrapper or doesn't need it
-- [?] WIP: should be differentiable but currently just re-export
 - [-] knowingly dropped from pulseq-zero (sigpy features)
 
 ---
@@ -96,6 +95,7 @@ Additional information, to be integrated into the list below:
 - [x] make_sinc_pulse                   *make_pulse.py*
 - [-] make_slr                         **no sigpy support**
 - [-] make_sms                         **no sigpy support**
+- [x] make_soft_delay                   *make_basic.py*
 - [x] make_trapezoid                    *make_grad.py*
 - [x] make_trigger                      *make_basic.py* **acts as delay in mr0**
 - [x] points_to_waveform                *grad_funcs.py*

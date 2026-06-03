@@ -78,6 +78,7 @@ from .helpers import (
     calc_rf_bandwidth,
     calc_rf_center,
     align,
+    traj_to_grad,
 )
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
@@ -87,6 +88,7 @@ from .wrapper.make_basic import (
     make_trigger,
     make_digital_output_pulse,
     make_label,
+    make_soft_delay,
 )
 from .wrapper.make_pulse import (
     make_block_pulse,
@@ -115,8 +117,6 @@ from .adapter.sequence import Sequence
 from .not_implemented import (
     calc_ramp,
     rotate,
-    traj_to_grad,
-    make_soft_delay,
     # these will for sure not be supported (documented)
     calc_SAR,
     enable_trace,
