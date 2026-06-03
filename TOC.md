@@ -103,8 +103,8 @@ Additional information, to be integrated into the list below:
 - [x] round_half_up                     *math.py*
 - [x] scale_grad                        *grad_funcs.py*
 - [-] sigpy_n_seq                      **no sigpy support**
-- [ ] split_gradient                    *grad_funcs.py*
-- [x] split_gradient_at
+- [x] split_gradient                    *grad_funcs.py*
+- [x] split_gradient_at                 *grad_funcs.py*
 - [ ] traj_to_grad
 - pulseq-zero math
   - [x] ceil

@@ -1,6 +1,6 @@
 from copy import copy
 from warnings import warn
-from typing import Optional, TypeVar, cast, TypeGuard
+from typing import Optional, TypeVar, cast, TypeGuard, overload
 from pypulseq import Opts
 from ..events import TrapGrad, ExtTrapGrad, ArbitraryGrad, Array, Scalar
 import torch
@@ -88,6 +88,145 @@ def split_gradient(
     )
 
     return ramp_up, flat_top, ramp_down
+
+
+@overload
+def split_gradient_at(
+    grad: ArbitraryGrad,
+    time_point: float,
+    system: Optional[Opts] = ...,
+) -> ArbitraryGrad | tuple[ArbitraryGrad, ArbitraryGrad]: ...
+@overload
+def split_gradient_at(
+    grad: TrapGrad | ExtTrapGrad,
+    time_point: float,
+    system: Optional[Opts] = ...,
+) -> tuple[ExtTrapGrad, ExtTrapGrad]: ...
+def split_gradient_at(
+    grad: TrapGrad | ExtTrapGrad | ArbitraryGrad,
+    time_point: float,
+    system: Optional[Opts] = None,
+) -> (
+    ArbitraryGrad
+    | tuple[ExtTrapGrad, ExtTrapGrad]
+    | tuple[ArbitraryGrad, ArbitraryGrad]
+):
+    from .make_grad import make_extended_trapezoid, make_arbitrary_grad
+
+    if system is None:
+        system = Opts.default
+
+    # copy() to emulate pass-by-value; otherwise passed grad is modified
+    grad = copy(grad)
+
+    grad_raster_time = system.grad_raster_time
+
+    time_index = round(time_point / grad_raster_time)
+    # Work around floating-point arithmetic limitation
+    time_point = round(time_index * grad_raster_time, 6)
+    channel = grad.channel
+
+    if isinstance(grad, ExtTrapGrad):
+        times = grad.tt
+        amplitudes = grad.waveform
+    elif isinstance(grad, ArbitraryGrad):
+        if grad.oversampling:
+            raise NotImplementedError(
+                "split_gradient_at() does not support oversampled gradients."
+            )
+        # Index into this gradient's own samples (time_point is absolute, so the
+        # delay has to be subtracted before converting to a sample index).
+        cut = round((time_point - float(grad.delay)) / grad_raster_time)
+        # If the split line is out of range there is nothing to do.
+        if cut <= 0 or cut >= len(grad.waveform):
+            return grad
+        # Amplitude on the split line: midway between the two flanking samples
+        # (the cut falls on a raster line, halfway between two cell centres).
+        amp_cut = 0.5 * (grad.waveform[cut - 1] + grad.waveform[cut])
+        # Build two *independent* gradients from slices of the original waveform.
+        # (The pypulseq original aliases grad1/grad2 to the same object and reads
+        # arrays it has already overwritten, returning two empty gradients.)
+        grad1 = make_arbitrary_grad(
+            channel=channel,
+            waveform=grad.waveform[:cut],
+            delay=grad.delay,
+            first=grad.first,
+            last=amp_cut,
+            system=system,
+        )
+        grad2 = make_arbitrary_grad(
+            channel=channel,
+            waveform=grad.waveform[cut:],
+            delay=time_point,  # absolute time of the split line
+            first=amp_cut,
+            last=grad.last,
+            system=system,
+        )
+        return grad1, grad2
+    else:
+        assert isinstance(grad, TrapGrad)
+
+        # Prepare the extended trapezoid structure
+        if grad.flat_time == 0:
+            times = [0, grad.rise_time, grad.rise_time + grad.fall_time]
+            amplitudes = [0, grad.amplitude, 0]
+        else:
+            times = [
+                0,
+                grad.rise_time,
+                grad.rise_time + grad.flat_time,
+                grad.rise_time + grad.flat_time + grad.fall_time,
+            ]
+            amplitudes = [0, grad.amplitude, grad.amplitude, 0]
+
+    # If the split line is behind the gradient, there is no second gradient to create
+    if time_point >= grad.delay + times[-1]:
+        raise ValueError(
+            "Splitting of gradient at time point after the end of gradient."
+        )
+
+    # If the split line goes through the delay
+    if time_point < grad.delay:
+        times = np.concatenate(([0], grad.delay + times))
+        amplitudes = [0, amplitudes]
+        grad.delay = 0
+    else:
+        time_point -= grad.delay
+
+    amplitudes = np.array(amplitudes)
+    times = np.array(times).round(6)  # Work around floating-point arithmetic limitation
+
+    # Sample at time point
+    amp_tp = np.interp(x=time_point, xp=times, fp=amplitudes)
+    t_eps = 1e-10
+    times1 = np.concatenate((times[np.where(times < time_point - t_eps)], [time_point]))
+    amplitudes1 = np.concatenate(
+        (amplitudes[np.where(times < time_point - t_eps)], [amp_tp])
+    )
+    times2 = (
+        np.concatenate(([time_point], times[times > time_point + t_eps])) - time_point
+    )
+    amplitudes2 = np.concatenate(([amp_tp], amplitudes[times > time_point + t_eps]))
+
+    # Recreate gradients
+    grad1 = make_extended_trapezoid(
+        channel=channel,
+        system=system,
+        times=times1,
+        amplitudes=amplitudes1,
+        skip_check=True,
+    )
+    grad1.delay = grad.delay
+    grad2 = make_extended_trapezoid(
+        channel=channel,
+        system=system,
+        times=times2,
+        amplitudes=amplitudes2,
+        skip_check=True,
+    )
+    grad2.delay = time_point
+
+    return grad1, grad2
 
 
 def add_gradients(

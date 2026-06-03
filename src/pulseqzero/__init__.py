@@ -52,7 +52,7 @@ __all__ = [
     "scale_grad",
     "sigpy_n_seq",
     "split_gradient",
-    # "split_gradient_at",
+    "split_gradient_at",
     "traj_to_grad",
 ]
 
@@ -102,15 +102,12 @@ from .wrapper.grad_funcs import (
     scale_grad,
     points_to_waveform,
     split_gradient,
+    split_gradient_at,
     add_gradients,
 )
 
 from .adapter.sequence import Sequence
 from .adapter.extended_trap_grad import make_extended_trapezoid_area
-# from .adapter.grads import (
-#     # split_gradient,
-#     # split_gradient_at,
-# )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
 # This list should be eliminated before releasing 1.0
