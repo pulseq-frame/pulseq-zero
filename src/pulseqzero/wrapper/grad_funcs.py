@@ -116,38 +116,25 @@ def split_gradient_at(
     if system is None:
         system = Opts.default
 
-    # copy() to emulate pass-by-value; otherwise passed grad is modified
-    grad = copy(grad)
-
     grad_raster_time = system.grad_raster_time
 
-    time_index = round(time_point / grad_raster_time)
-    # Work around floating-point arithmetic limitation
-    time_point = round(time_index * grad_raster_time, 6)
-    channel = grad.channel
+    # Snap the split line to the raster grid to avoid round-trip rounding errors
+    time_point = round(round(time_point / grad_raster_time) * grad_raster_time, 6)
 
-    if isinstance(grad, ExtTrapGrad):
-        times = grad.tt
-        amplitudes = grad.waveform
-    elif isinstance(grad, ArbitraryGrad):
+    if isinstance(grad, ArbitraryGrad):
         if grad.oversampling:
             raise NotImplementedError(
                 "split_gradient_at() does not support oversampled gradients."
             )
-        # Index into this gradient's own samples (time_point is absolute, so the
-        # delay has to be subtracted before converting to a sample index).
+        # map time_point to index in gradient waveform
         cut = round((time_point - float(grad.delay)) / grad_raster_time)
-        # If the split line is out of range there is nothing to do.
         if cut <= 0 or cut >= len(grad.waveform):
             return grad
-        # Amplitude on the split line: midway between the two flanking samples
-        # (the cut falls on a raster line, halfway between two cell centres).
+
+        # We place the split line in between samples - amplitude is average
         amp_cut = 0.5 * (grad.waveform[cut - 1] + grad.waveform[cut])
-        # Build two *independent* gradients from slices of the original waveform.
-        # (The pypulseq original aliases grad1/grad2 to the same object and reads
-        # arrays it has already overwritten, returning two empty gradients.)
         grad1 = make_arbitrary_grad(
-            channel=channel,
+            channel=grad.channel,
             waveform=grad.waveform[:cut],
             delay=grad.delay,
             first=grad.first,
@@ -155,77 +142,46 @@ def split_gradient_at(
             system=system,
         )
         grad2 = make_arbitrary_grad(
-            channel=channel,
+            channel=grad.channel,
             waveform=grad.waveform[cut:],
-            delay=time_point,  # absolute time of the split line
+            delay=time_point,
             first=amp_cut,
             last=grad.last,
             system=system,
         )
         return grad1, grad2
-    else:
-        assert isinstance(grad, TrapGrad)
 
-        # Prepare the extended trapezoid structure
-        if grad.flat_time == 0:
-            times = [0, grad.rise_time, grad.rise_time + grad.fall_time]
-            amplitudes = [0, grad.amplitude, 0]
-        else:
-            times = [
-                0,
-                grad.rise_time,
-                grad.rise_time + grad.flat_time,
-                grad.rise_time + grad.flat_time + grad.fall_time,
-            ]
-            amplitudes = [0, grad.amplitude, grad.amplitude, 0]
-
-    # If the split line is behind the gradient, there is no second gradient to create
-    if time_point >= grad.delay + times[-1]:
+    # TrapGrad / ExtTrapGrad: split the piecewise-linear shape at the cut line,
+    # inserting the interpolated value there. Differentiable in amplitudes and timing.
+    t_abs, amp = _control_points(grad)
+    if time_point >= float(t_abs[-1].detach()):
         raise ValueError(
             "Splitting of gradient at time point after the end of gradient."
         )
+    if time_point <= float(t_abs[0].detach()):
+        raise ValueError(
+            "Splitting of gradient at time point before the start of gradient."
+        )
 
-    # If the split line goes through the delay
-    if time_point < grad.delay:
-        times = np.concatenate(([0], grad.delay + times))
-        amplitudes = [0, amplitudes]
-        grad.delay = 0
-    else:
-        time_point -= grad.delay
+    tp = torch.as_tensor(time_point, dtype=t_abs.dtype).reshape(1)
+    amp_tp = _torch_interp(tp, t_abs, amp)
+    left = t_abs < time_point - 1e-9
+    right = t_abs > time_point + 1e-9
 
-    amplitudes = np.array(amplitudes)
-    times = np.array(times).round(6)  # Work around floating-point arithmetic limitation
-
-    # Sample at time point
-    amp_tp = np.interp(x=time_point, xp=times, fp=amplitudes)
-    t_eps = 1e-10
-    times1 = np.concatenate((times[np.where(times < time_point - t_eps)], [time_point]))
-    amplitudes1 = np.concatenate(
-        (amplitudes[np.where(times < time_point - t_eps)], [amp_tp])
-    )
-    times2 = (
-        np.concatenate(([time_point], times[times > time_point + t_eps])) - time_point
-    )
-    amplitudes2 = np.concatenate(([amp_tp], amplitudes[times > time_point + t_eps]))
-
-    # Recreate gradients
     grad1 = make_extended_trapezoid(
-        channel=channel,
+        channel=grad.channel,
         system=system,
-        times=times1,
-        amplitudes=amplitudes1,
+        times=torch.cat([t_abs[left], tp]),
+        amplitudes=torch.cat([amp[left], amp_tp]),
         skip_check=True,
     )
-    grad1.delay = grad.delay
     grad2 = make_extended_trapezoid(
-        channel=channel,
+        channel=grad.channel,
         system=system,
-        times=times2,
-        amplitudes=amplitudes2,
+        times=torch.cat([tp, t_abs[right]]),
+        amplitudes=torch.cat([amp_tp, amp[right]]),
         skip_check=True,
     )
-    grad2.delay = time_point
-
     return grad1, grad2
 
 
@@ -301,6 +257,22 @@ def add_gradients(
     if not any(isinstance(g, ArbitraryGrad) for g in grads):
         shapes = [_control_points(g) for g in grads]
 
+        # A shape with a non-zero leading edge (e.g. a piece from
+        # split_gradient_at) must turn on *just after* its start, otherwise it
+        # double-counts with the neighbouring piece it abuts. Nudge its first
+        # time past the shared boundary by a few ULPs: small enough that the merge
+        # below collapses the extra point (so the seam stays exact), large enough
+        # to register and push the boundary strictly outside the support.
+        start = min(float(tt[0].detach()) for tt, _ in shapes)
+
+        def _nudge(tt, wf):
+            if float(wf[0].detach()) == 0.0 or float(tt[0].detach()) <= start:
+                return tt, wf
+            eps = 8 * torch.finfo(tt.dtype).eps * tt[:1].abs()
+            return torch.cat([tt[:1] + eps, tt[1:]]), wf
+
+        shapes = [_nudge(tt, wf) for tt, wf in shapes]
+
         # Union time axis: sorted, with near-coincident points merged away.
         # (Timing gradients are exact except when two breakpoints exactly
         # coincide, where the merge makes the area non-smooth.)
@@ -309,8 +281,10 @@ def add_gradients(
         times = times[keep]
 
         # Each shape contributes 0 outside its own support; superimpose them.
+        # tol=0: the axis is built from these exact times, so a strict boundary
+        # makes abutting pieces concatenate instead of summing at the seam.
         amplitudes = torch.stack(
-            [_torch_interp(times, tt, wf) for tt, wf in shapes]
+            [_torch_interp(times, tt, wf, tol=0.0) for tt, wf in shapes]
         ).sum(0)
 
         return make_extended_trapezoid(
@@ -352,11 +326,13 @@ def add_gradients(
 # =============================================================================
 
 
-def _torch_interp(x, xp, fp):
+def _torch_interp(x, xp, fp, tol=None):
     """torch replacement for numpys interp, returning 0 outside [xp[0], xp[-1]].
-    Differentiable in x, xp and fp. The support test carries a few-ULP slack so a
-    sample landing on a boundary survives float rounding (xp and x may even be
-    computed in different dtypes) - important for shapes with non-zero edges."""
+    Differentiable in x, xp and fp. `tol` is the slack on the support test: the
+    default few-ULP slack lets a sample landing on a boundary survive float
+    rounding (when xp and x are computed in different dtypes), which the rasterize
+    path needs; the union path passes tol=0 because its axis comes from the exact
+    control-point times and it relies on a strict boundary to abut shapes."""
     x, xp, fp = torch.as_tensor(x), torch.as_tensor(xp), torch.as_tensor(fp)
     xp = xp.to(x.dtype)
     m = torch.diff(fp) / torch.diff(xp)  # slope
@@ -364,7 +340,8 @@ def _torch_interp(x, xp, fp):
 
     idx = (torch.searchsorted(xp, x, right=False) - 1).clamp(0, xp.numel() - 2)
     y = m[idx] * x + b[idx]
-    tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> float noise
+    if tol is None:
+        tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> noise
     inside = (x >= xp[0] - tol) & (x <= xp[-1] + tol)
     return torch.where(inside, y, y.new_zeros(()))
 
