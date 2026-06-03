@@ -1,6 +1,9 @@
 from warnings import warn
+from typing import Optional
 import numpy as np
-from .events import Scalar, RfPulse, Event
+import torch
+from .events import Scalar, RfPulse, Event, Array
+from pypulseq import Opts
 
 
 def calc_duration(*args: Event) -> Scalar:
@@ -26,3 +29,21 @@ def calc_rf_center(rf: RfPulse) -> tuple[Scalar, int]:
         "This behaviour does not affect forwarded pypulseq sequence operations which use the pypulseq implementation."
     )
     return rf.center, 0
+
+
+def traj_to_grad(k: Array, raster_time: Optional[float] = None) -> tuple[Array, Array]:
+    if raster_time is None:
+        raster_time = Opts.default.grad_raster_time
+
+    # Compute finite difference for gradients in Hz/m
+    g = (k[..., 1:] - k[..., :-1]) / raster_time
+    # Compute the slew rate
+    sr0 = (g[..., 1:] - g[..., :-1]) / raster_time
+
+    # Gradient is now sampled between k-space points whilst the slew rate is between gradient points
+    sr = torch.zeros((*sr0.shape[:-1], sr0.shape[-1] + 1))
+    sr[..., 0] = sr0[..., 0]
+    sr[..., 1:-1] = 0.5 * (sr0[..., :-1] + sr0[..., 1:])
+    sr[..., -1] = sr0[..., -1]
+
+    return g, sr

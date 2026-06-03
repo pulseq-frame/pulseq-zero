@@ -95,8 +95,9 @@ from .wrapper.make_pulse import (
 )
 from .wrapper.make_grad import (
     make_trapezoid,
-    make_extended_trapezoid,
     make_arbitrary_grad,
+    make_extended_trapezoid,
+    make_extended_trapezoid_area,
 )
 from .wrapper.grad_funcs import (
     scale_grad,
@@ -107,12 +108,10 @@ from .wrapper.grad_funcs import (
 )
 
 from .adapter.sequence import Sequence
-from .adapter.extended_trap_grad import make_extended_trapezoid_area
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
 # This list should be eliminated before releasing 1.0
 from .not_implemented import (
-    make_adiabatic_pulse,
     align,
     calc_ramp,
     rotate,
@@ -124,6 +123,7 @@ from .not_implemented import (
     disable_trace,
     SigpyPulseOpts,
     sigpy_n_seq,
+    make_adiabatic_pulse,
     make_slr,
     make_sms,
 )

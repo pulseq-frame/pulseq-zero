@@ -83,14 +83,14 @@ Additional information, to be integrated into the list below:
 - [x] get_supported_labels             **re-exported**
 - [x] get_supported_rf_uses            **re-exported**
 - [x] make_adc                          *make_adc.py*
-- [ ] make_adiabatic_pulse
+- [-] make_adiabatic_pulse             **no adiabatic support**
 - [x] make_arbitrary_grad               *make_grad.py*
 - [x] make_arbitrary_rf                 *make_pulse.py*
 - [x] make_block_pulse                  *make_pulse.py*
 - [x] make_delay                        *make_basic.py*
 - [x] make_digital_output_pulse         *make_basic.py* **acts as delay in mr0**
 - [x] make_extended_trapezoid           *make_grad.py*
-- [ ] make_extended_trapezoid_area
+- [WIP] make_extended_trapezoid_area    *make_grad.py*
 - [x] make_gauss_pulse                  *make_pulse.py*
 - [x] make_label                        *make_basic.py*
 - [x] make_sinc_pulse                   *make_pulse.py*
@@ -105,7 +105,7 @@ Additional information, to be integrated into the list below:
 - [-] sigpy_n_seq                      **no sigpy support**
 - [x] split_gradient                    *grad_funcs.py*
 - [x] split_gradient_at                 *grad_funcs.py*
-- [ ] traj_to_grad
+- [x] traj_to_grad                      *helpers.py*
 - pulseq-zero math
   - [x] ceil
   - [x] floor
