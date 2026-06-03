@@ -1,5 +1,5 @@
 import torch
-from typing import Union, cast, Literal, Optional, overload
+from typing import cast, Literal, Optional, overload
 from pypulseq import Opts
 from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
 from .grad_funcs import points_to_waveform
@@ -8,17 +8,17 @@ import numpy as np
 
 def make_trapezoid(
     channel: str,
-    amplitude: Union[Scalar, None] = None,
-    area: Union[Scalar, None] = None,
+    amplitude: Optional[Scalar] = None,
+    area: Optional[Scalar] = None,
     delay: Scalar = 0.0,
-    duration: Union[Scalar, None] = None,
-    fall_time: Union[Scalar, None] = None,
-    flat_area: Union[Scalar, None] = None,
-    flat_time: Union[Scalar, None] = None,
-    max_grad: Union[Scalar, None] = None,
-    max_slew: Union[Scalar, None] = None,
-    rise_time: Union[Scalar, None] = None,
-    system: Union[Opts, None] = None,
+    duration: Optional[Scalar] = None,
+    fall_time: Optional[Scalar] = None,
+    flat_area: Optional[Scalar] = None,
+    flat_time: Optional[Scalar] = None,
+    max_grad: Optional[Scalar] = None,
+    max_slew: Optional[Scalar] = None,
+    rise_time: Optional[Scalar] = None,
+    system: Optional[Opts] = None,
 ) -> TrapGrad:
     if channel not in ["x", "y", "z"]:
         raise ValueError(
@@ -140,12 +140,12 @@ def calculate_shortest_params_for_area(
 def make_arbitrary_grad(
     channel: str,
     waveform: Array,
-    first: Union[Scalar, None] = None,
-    last: Union[Scalar, None] = None,
+    first: Optional[Scalar] = None,
+    last: Optional[Scalar] = None,
     delay: Scalar = 0.0,
-    max_grad: Union[Scalar, None] = None,
-    max_slew: Union[Scalar, None] = None,
-    system: Union[Opts, None] = None,
+    max_grad: Optional[Scalar] = None,
+    max_slew: Optional[Scalar] = None,
+    system: Optional[Opts] = None,
     oversampling: bool = False,
 ) -> ArbitraryGrad:
     if system is None:
