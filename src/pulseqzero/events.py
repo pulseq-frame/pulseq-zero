@@ -173,6 +173,10 @@ class ExtTrapGrad:
     def delay(self) -> Scalar:
         return self._times[0]
 
+    @delay.setter
+    def delay(self, value: Scalar) -> None:
+        self._times = self._times - self._times[0] + value
+
     @property
     def tt(self) -> Array:
         return self._times - self.delay

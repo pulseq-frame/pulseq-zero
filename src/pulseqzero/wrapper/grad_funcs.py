@@ -43,55 +43,51 @@ def points_to_waveform(
         return np.interp(x=time_grid, xp=times, fp=amplitudes)
 
 
-def _torch_interp(x, xp, fp):
-    """torch replacement for numpys interp, returning 0 outside [xp[0], xp[-1]].
-    Differentiable in x, xp and fp. The support test carries a few-ULP slack so a
-    sample landing on a boundary survives float rounding (xp and x may even be
-    computed in different dtypes) - important for shapes with non-zero edges."""
-    x, xp, fp = torch.as_tensor(x), torch.as_tensor(xp), torch.as_tensor(fp)
-    xp = xp.to(x.dtype)
-    m = torch.diff(fp) / torch.diff(xp)  # slope
-    b = fp[:-1] - m * xp[:-1]  # offset
+def split_gradient(
+    grad: TrapGrad, system: Optional[Opts] = None
+) -> tuple[ExtTrapGrad, ExtTrapGrad, ExtTrapGrad]:
+    from .make_grad import make_extended_trapezoid
 
-    idx = (torch.searchsorted(xp, x, right=False) - 1).clamp(0, xp.numel() - 2)
-    y = m[idx] * x + b[idx]
-    tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> float noise
-    inside = (x >= xp[0] - tol) & (x <= xp[-1] + tol)
-    return torch.where(inside, y, y.new_zeros(()))
-
-
-def _all_traps(grads) -> TypeGuard[list[TrapGrad]]:
-    return all(isinstance(g, TrapGrad) for g in grads)
-
-
-def cumsum(*args: Scalar) -> list[Scalar]:
-    result = [args[0]]
-    for arg in args[1:]:
-        result.append(result[-1] + arg)
-    return result
-
-
-def _control_points(
-    g: TrapGrad | ExtTrapGrad | ArbitraryGrad,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """A gradient as piecewise-linear control points (absolute times, amplitudes);
-    both tensors keep autograd from the event's fields. (stack promotes dtypes.)"""
-    if isinstance(g, TrapGrad):
-        if g.flat_time > 0:  # trapezoid
-            tt = cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
-            wf = [0.0, g.amplitude, g.amplitude, 0.0]
-        else:  # triangle
-            tt = cumsum(g.delay, g.rise_time, g.fall_time)
-            wf = [0.0, g.amplitude, 0.0]
-        return (
-            torch.stack([torch.as_tensor(v) for v in tt]),
-            torch.stack([torch.as_tensor(v) for v in wf]),
+    if not isinstance(grad, TrapGrad):
+        raise ValueError(
+            "split_gradient is only implemented for trapezoidal gradients, "
+            f"{type(grad)} is not supported."
         )
-    if isinstance(g, ExtTrapGrad):
-        # absolute times and per-point amplitudes stored verbatim
-        return torch.as_tensor(g._times), torch.as_tensor(g.waveform)
-    # ArbitraryGrad: its samples define a piecewise-linear shape at absolute times.
-    return torch.as_tensor(g.delay) + torch.as_tensor(g.tt), torch.as_tensor(g.waveform)
+
+    def as_tensor(values: list[Scalar]) -> torch.Tensor:
+        return torch.stack([torch.as_tensor(v) for v in values])
+
+    if system is None:
+        system = Opts.default
+    times = as_tensor(
+        _cumsum(grad.delay, grad.rise_time, grad.flat_time, grad.fall_time)
+    )
+
+    ramp_up = make_extended_trapezoid(
+        channel=grad.channel,
+        system=system,
+        times=times[0:2],
+        amplitudes=as_tensor([0, grad.amplitude]),
+        skip_check=True,
+    )
+
+    flat_top = make_extended_trapezoid(
+        channel=grad.channel,
+        system=system,
+        times=times[1:3],
+        amplitudes=as_tensor([grad.amplitude, grad.amplitude]),
+        skip_check=True,
+    )
+
+    ramp_down = make_extended_trapezoid(
+        channel=grad.channel,
+        system=system,
+        times=times[2:4],
+        amplitudes=as_tensor([grad.amplitude, 0]),
+        skip_check=True,
+    )
+
+    return ramp_up, flat_top, ramp_down
 
 
 def add_gradients(
@@ -100,7 +96,6 @@ def add_gradients(
     max_slew: Scalar = 0,
     system: Optional[Opts] = None,
 ) -> TrapGrad | ExtTrapGrad | ArbitraryGrad:
-    # Imported lazily: make_grad imports points_to_waveform from this module.
     from .make_grad import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
 
     warn(
@@ -211,3 +206,59 @@ def add_gradients(
         first=first,
         last=last,
     )
+
+
+# =============================================================================
+# Helper functions, not exported directly
+# =============================================================================
+
+
+def _torch_interp(x, xp, fp):
+    """torch replacement for numpys interp, returning 0 outside [xp[0], xp[-1]].
+    Differentiable in x, xp and fp. The support test carries a few-ULP slack so a
+    sample landing on a boundary survives float rounding (xp and x may even be
+    computed in different dtypes) - important for shapes with non-zero edges."""
+    x, xp, fp = torch.as_tensor(x), torch.as_tensor(xp), torch.as_tensor(fp)
+    xp = xp.to(x.dtype)
+    m = torch.diff(fp) / torch.diff(xp)  # slope
+    b = fp[:-1] - m * xp[:-1]  # offset
+
+    idx = (torch.searchsorted(xp, x, right=False) - 1).clamp(0, xp.numel() - 2)
+    y = m[idx] * x + b[idx]
+    tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> float noise
+    inside = (x >= xp[0] - tol) & (x <= xp[-1] + tol)
+    return torch.where(inside, y, y.new_zeros(()))
+
+
+def _all_traps(grads) -> TypeGuard[list[TrapGrad]]:
+    return all(isinstance(g, TrapGrad) for g in grads)
+
+
+def _cumsum(*args: Scalar) -> list[Scalar]:
+    result = [args[0]]
+    for arg in args[1:]:
+        result.append(result[-1] + arg)
+    return result
+
+
+def _control_points(
+    g: TrapGrad | ExtTrapGrad | ArbitraryGrad,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """A gradient as piecewise-linear control points (absolute times, amplitudes);
+    both tensors keep autograd from the event's fields. (stack promotes dtypes.)"""
+    if isinstance(g, TrapGrad):
+        if g.flat_time > 0:  # trapezoid
+            tt = _cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+            wf = [0.0, g.amplitude, g.amplitude, 0.0]
+        else:  # triangle
+            tt = _cumsum(g.delay, g.rise_time, g.fall_time)
+            wf = [0.0, g.amplitude, 0.0]
+        return (
+            torch.stack([torch.as_tensor(v) for v in tt]),
+            torch.stack([torch.as_tensor(v) for v in wf]),
+        )
+    if isinstance(g, ExtTrapGrad):
+        # absolute times and per-point amplitudes stored verbatim
+        return torch.as_tensor(g._times), torch.as_tensor(g.waveform)
+    # ArbitraryGrad: its samples define a piecewise-linear shape at absolute times.
+    return torch.as_tensor(g.delay) + torch.as_tensor(g.tt), torch.as_tensor(g.waveform)

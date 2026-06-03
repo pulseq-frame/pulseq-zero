@@ -98,14 +98,19 @@ from .wrapper.make_grad import (
     make_extended_trapezoid,
     make_arbitrary_grad,
 )
-from .wrapper.grad_funcs import scale_grad, points_to_waveform, add_gradients
+from .wrapper.grad_funcs import (
+    scale_grad,
+    points_to_waveform,
+    split_gradient,
+    add_gradients,
+)
 
 from .adapter.sequence import Sequence
 from .adapter.extended_trap_grad import make_extended_trapezoid_area
-from .adapter.grads import (
-    split_gradient,
-    # split_gradient_at,
-)
+# from .adapter.grads import (
+#     # split_gradient,
+#     # split_gradient_at,
+# )
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
 # This list should be eliminated before releasing 1.0

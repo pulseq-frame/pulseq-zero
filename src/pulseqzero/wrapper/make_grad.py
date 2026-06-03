@@ -1,5 +1,5 @@
 import torch
-from typing import Union, cast, Optional
+from typing import Union, cast, Literal, Optional, overload
 from pypulseq import Opts
 from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
 from .grad_funcs import points_to_waveform
@@ -182,6 +182,28 @@ def make_arbitrary_grad(
     )
 
 
+@overload
+def make_extended_trapezoid(
+    channel: str,
+    amplitudes: Optional[Array] = ...,
+    convert_to_arbitrary: Literal[False] = ...,
+    max_grad: Scalar = ...,
+    max_slew: Scalar = ...,
+    skip_check: bool = ...,
+    system: Optional[Opts] = ...,
+    times: Optional[Array] = ...,
+) -> ExtTrapGrad: ...
+@overload
+def make_extended_trapezoid(
+    channel: str,
+    amplitudes: Optional[Array] = ...,
+    convert_to_arbitrary: Literal[True] = ...,
+    max_grad: Scalar = ...,
+    max_slew: Scalar = ...,
+    skip_check: bool = ...,
+    system: Optional[Opts] = ...,
+    times: Optional[Array] = ...,
+) -> ArbitraryGrad: ...
 def make_extended_trapezoid(
     channel: str,
     amplitudes: Optional[Array] = None,
