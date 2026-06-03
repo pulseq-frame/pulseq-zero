@@ -292,8 +292,12 @@ def make_extended_trapezoid_area(
     max_grad: Optional[Scalar] = None,
     max_slew: Optional[Scalar] = None,
 ) -> tuple[ArbitraryGrad | ExtTrapGrad, Array, Array]:
-    from .grad_funcs import _cumsum
-
+    from pypulseq import eps
+    from warnings import warn
+    warn(
+        "This was adapted from pypulseq; made differentiable with LLMs. "
+        "Might not be up to the same standard as the rest of pulseq-zero."
+    )
     if system is None:
         system = Opts.default
     if max_grad is None:
@@ -310,13 +314,30 @@ def make_extended_trapezoid_area(
 
     raster_time = system.grad_raster_time
 
+    # The timing is found by a discrete grid search (below) and is not
+    # differentiable, so that runs on detached floats. The live tensors are kept
+    # aside and autograd is reconnected through grad_amp once the timing is fixed.
+    # float64 keeps the closing area check tight.
+    area_t = torch.as_tensor(area, dtype=torch.float64)
+    grad_start_t = torch.as_tensor(grad_start, dtype=torch.float64)
+    grad_end_t = torch.as_tensor(grad_end, dtype=torch.float64)
+    area = float(area_t.detach())
+    grad_start = float(grad_start_t.detach())
+    grad_end = float(grad_end_t.detach())
+    max_grad = float(cast(Scalar, max_grad))
+    max_slew = float(cast(Scalar, max_slew))
+    if duration is not None:
+        # round to ns to shed float noise (e.g. a float32 tensor input) before the
+        # ceil-to-raster snap below would otherwise spill into an extra raster.
+        duration = round(float(torch.as_tensor(duration, dtype=torch.float64).detach()), 9)
+
     def _to_raster(time: float) -> float:
         return np.ceil(time / raster_time) * raster_time
 
     def _calc_ramp_time(grad_1: float, grad_2: float) -> float:
         return _to_raster(abs(grad_1 - grad_2) / max_slew)
 
-    def _find_solution(duration: int) -> Union[None, Tuple[int, int, int, float]]:
+    def _find_solution(duration: int) -> tuple[int, int, int, float] | None:
         """Find extended trapezoid gradient waveform for given duration.
 
         The function performs a grid search over all possible ramp-up, ramp-down and flat times
@@ -492,19 +513,20 @@ def make_extended_trapezoid_area(
                 f"Could not find a solution for area={area} and duration={duration}."
             )
 
-    # Get timing and gradient amplitude from solution
-    time_ramp_up = solution[0] * raster_time
-    flat_time = solution[1] * raster_time
-    time_ramp_down = solution[2] * raster_time
-    grad_amp = solution[3]
+    # Reconnect autograd: with the timing fixed (n_up / n_flat / n_down raster
+    # counts), grad_amp is the exact analytic amplitude that hits `area` for the
+    # live grad_start / grad_end, so gradients flow through it and the waveform.
+    n_up, n_flat, n_down = solution[0], solution[1], solution[2]
+    grad_amp = (
+        2 * area_t - (n_up * grad_start_t + n_down * grad_end_t) * raster_time
+    ) / ((n_up + 2 * n_flat + n_down) * raster_time)
 
-    # Create extended trapezoid
-    if flat_time > 0:
-        times = _cumsum(0, time_ramp_up, flat_time, time_ramp_down)
-        amplitudes = np.array([grad_start, grad_amp, grad_amp, grad_end])
+    if n_flat > 0:
+        times = np.array([0, n_up, n_up + n_flat, n_up + n_flat + n_down]) * raster_time
+        amplitudes = torch.stack([grad_start_t, grad_amp, grad_amp, grad_end_t])
     else:
-        times = _cumsum(0, time_ramp_up, time_ramp_down)
-        amplitudes = np.array([grad_start, grad_amp, grad_end])
+        times = np.array([0, n_up, n_up + n_down]) * raster_time
+        amplitudes = torch.stack([grad_start_t, grad_amp, grad_end_t])
 
     grad = make_extended_trapezoid(
         channel=channel,
@@ -514,7 +536,7 @@ def make_extended_trapezoid_area(
         times=times,
     )
 
-    if not abs(grad.area - area) < eps:
+    if not abs(float(torch.as_tensor(grad.area).detach()) - area) < eps:
         raise ValueError(f"Could not find a solution for area={area}.")
 
     return grad, grad.tt, grad.waveform
