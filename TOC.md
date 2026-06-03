@@ -70,7 +70,7 @@ Additional information, to be integrated into the list below:
   - [ ] write
 - [-] SigpyPulseOpts                   **no sigpy support**
 - [x] add_gradients                     *grad_funcs.py*
-- [ ] align
+- [x] align                             *helpers.py*
 - [x] calc_SAR                         **error deprecated**
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*

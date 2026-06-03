@@ -1,5 +1,6 @@
 from warnings import warn
 from typing import Optional
+from copy import deepcopy
 import numpy as np
 import torch
 from .events import Scalar, RfPulse, Event, Array
@@ -47,3 +48,40 @@ def traj_to_grad(k: Array, raster_time: Optional[float] = None) -> tuple[Array, 
     sr[..., -1] = sr0[..., -1]
 
     return g, sr
+
+
+def align(**kwargs: Event | list[Event]) -> list[Event]:
+    """Align passed events left or right by adjusting their delay.
+
+    Example: `g1, g2, g3 = align(right=[g2, g3], center=g3)`"""
+
+    if any([align not in ["left", "center", "right"] for align in kwargs]):
+        raise ValueError("Invalid alignment spec.")
+
+    alignments = []
+    objects: list[Event] = []
+    for arg_align, arg_objects in kwargs.items():
+        if isinstance(arg_objects, Event):
+            alignments.append(arg_align)
+            objects.append(arg_objects)
+        else:
+            assert isinstance(arg_objects, list[Event])
+            alignments.extend([arg_align] * len(arg_objects))
+            objects.extend(arg_objects)
+
+    # Copy objects before adjusting delays - do not modify inputs
+    objects = deepcopy(objects)
+    dur = calc_duration(*objects)
+
+    # Set new delays
+    for i in range(len(objects)):
+        if alignments[i] == "left":
+            objects[i].delay = 0
+        elif alignments[i] == "center":
+            objects[i].delay = (dur - objects[i].duration) / 2
+        elif alignments[i] == "right":
+            objects[i].delay = dur - (objects[i].duration - objects[i].delay)
+            if objects[i].delay < 0:
+                raise ValueError("Bug: align() attempts to set a negative delay")
+
+    return objects

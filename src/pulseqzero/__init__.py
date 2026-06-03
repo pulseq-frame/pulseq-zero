@@ -77,6 +77,7 @@ from .helpers import (
     calc_duration,
     calc_rf_bandwidth,
     calc_rf_center,
+    align,
 )
 
 # the "meat" of pulseq-zero: differentiable impls of seq building funcs
@@ -112,13 +113,12 @@ from .adapter.sequence import Sequence
 # No pulseq-zero support yet, calling will raise NotImplementedError.
 # This list should be eliminated before releasing 1.0
 from .not_implemented import (
-    align,
     calc_ramp,
     rotate,
     traj_to_grad,
     make_soft_delay,
-    calc_SAR,
     # these will for sure not be supported (documented)
+    calc_SAR,
     enable_trace,
     disable_trace,
     SigpyPulseOpts,
