@@ -1,8 +1,8 @@
-from copy import copy, deepcopy
+from copy import copy
+from warnings import warn
 from typing import Optional, TypeVar, cast, TypeGuard
 from pypulseq import Opts
 from ..events import TrapGrad, ExtTrapGrad, ArbitraryGrad, Array, Scalar
-from .make_grad import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
 import torch
 import numpy as np
 
@@ -44,14 +44,20 @@ def points_to_waveform(
 
 
 def _torch_interp(x, xp, fp):
-    """torch replacement for numpys interp. Differentiable in fp."""
+    """torch replacement for numpys interp, returning 0 outside [xp[0], xp[-1]].
+    Differentiable in x, xp and fp. The support test carries a few-ULP slack so a
+    sample landing on a boundary survives float rounding (xp and x may even be
+    computed in different dtypes) - important for shapes with non-zero edges."""
+    x, xp, fp = torch.as_tensor(x), torch.as_tensor(xp), torch.as_tensor(fp)
+    xp = xp.to(x.dtype)
     m = torch.diff(fp) / torch.diff(xp)  # slope
-    b = fp[:-1] - (m * xp[:-1])  # offset
+    b = fp[:-1] - m * xp[:-1]  # offset
 
-    indices = torch.searchsorted(xp, x, right=False)
-    indices = (indices - 1).clamp(0, len(indices) - 1)
-
-    return m[indices] * x + b[indices]
+    idx = (torch.searchsorted(xp, x, right=False) - 1).clamp(0, xp.numel() - 2)
+    y = m[idx] * x + b[idx]
+    tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> float noise
+    inside = (x >= xp[0] - tol) & (x <= xp[-1] + tol)
+    return torch.where(inside, y, y.new_zeros(()))
 
 
 def _all_traps(grads) -> TypeGuard[list[TrapGrad]]:
@@ -65,16 +71,50 @@ def cumsum(*args: Scalar) -> list[Scalar]:
     return result
 
 
+def _control_points(
+    g: TrapGrad | ExtTrapGrad | ArbitraryGrad,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """A gradient as piecewise-linear control points (absolute times, amplitudes);
+    both tensors keep autograd from the event's fields. (stack promotes dtypes.)"""
+    if isinstance(g, TrapGrad):
+        if g.flat_time > 0:  # trapezoid
+            tt = cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time)
+            wf = [0.0, g.amplitude, g.amplitude, 0.0]
+        else:  # triangle
+            tt = cumsum(g.delay, g.rise_time, g.fall_time)
+            wf = [0.0, g.amplitude, 0.0]
+        return (
+            torch.stack([torch.as_tensor(v) for v in tt]),
+            torch.stack([torch.as_tensor(v) for v in wf]),
+        )
+    if isinstance(g, ExtTrapGrad):
+        # absolute times and per-point amplitudes stored verbatim
+        return torch.as_tensor(g._times), torch.as_tensor(g.waveform)
+    # ArbitraryGrad: its samples define a piecewise-linear shape at absolute times.
+    return torch.as_tensor(g.delay) + torch.as_tensor(g.tt), torch.as_tensor(g.waveform)
+
+
 def add_gradients(
     grads: list[TrapGrad | ExtTrapGrad | ArbitraryGrad],
     max_grad: Scalar = 0,
     max_slew: Scalar = 0,
     system: Optional[Opts] = None,
 ) -> TrapGrad | ExtTrapGrad | ArbitraryGrad:
+    # Imported lazily: make_grad imports points_to_waveform from this module.
+    from .make_grad import make_trapezoid, make_arbitrary_grad, make_extended_trapezoid
+
+    warn(
+        "add_gradients() was written with the help of LLMs; the pypulseq code "
+        "is a port of MATLAB code and broken in some circumstances. This code "
+        "aims to be a sensible implementation, not a 1:1 replica of pypulseq."
+    )
+
     if len(grads) == 0:
         raise ValueError("No gradients specified")
     if len(grads) == 1:
-        return deepcopy(grads[0])
+        # Shallow copy: deepcopy would raise on non-leaf tensor fields (e.g. an
+        # amplitude derived from an optimized parameter).
+        return copy(grads[0])
 
     # all gradients must have the same channel
     channel = grads[0].channel
@@ -85,6 +125,12 @@ def add_gradients(
     if not all(g.channel == channel for g in grads):
         raise ValueError("Cannot add gradients on different channels.")
 
+    # The upstream PyPulseq routine for oversampled grads is broken.
+    if any(isinstance(g, ArbitraryGrad) and g.oversampling for g in grads):
+        raise NotImplementedError(
+            "add_gradients() does not support oversampled gradients."
+        )
+
     # set defaults
     if system is None:
         system = Opts.default
@@ -93,7 +139,9 @@ def add_gradients(
     if max_slew <= 0:
         max_slew = cast(float, system.max_slew)
 
+    # =========================================================================
     # Check if we have a set of traps with the same timing
+    # =========================================================================
     if (
         _all_traps(grads)
         and all(g.rise_time == grads[0].rise_time for g in grads)
@@ -112,172 +160,54 @@ def add_gradients(
         )
         return grad
 
-    # Find out the general delay of all gradients and other statistics
-    delays = [g.delay for g in grads]
-    durs = [g.duration for g in grads]
-    is_trap = [isinstance(g, TrapGrad) for g in grads]
-    is_etrap = [isinstance(g, ExtTrapGrad) for g in grads]
-    is_arb = [isinstance(g, ArbitraryGrad) for g in grads]
-    is_osa = [isinstance(g, ArbitraryGrad) and g.oversampling for g in grads]
-    firsts = [g.first for g in grads]
-    lasts = [g.last for g in grads]
+    # =========================================================================
+    # Only trapezoids and extended trapezoids (no arbitrary grads): join their
+    # piecewise-linear shapes on the union of all control-point times.
+    # =========================================================================
+    if not any(isinstance(g, ArbitraryGrad) for g in grads):
+        shapes = [_control_points(g) for g in grads]
 
-    # Check if we only have arbitrary grads on irregular time samplings, optionally mixed with trapezoids
-    if not any(is_arb):
-        # Keep shapes still rather simple
-        times = []
-        for g in grads:
-            if isinstance(g, TrapGrad):
-                times.extend(cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time))
-            else:
-                times.extend(g.delay + g.tt)
+        # Union time axis: sorted, with near-coincident points merged away.
+        # (Timing gradients are exact except when two breakpoints exactly
+        # coincide, where the merge makes the area non-smooth.)
+        times = torch.sort(torch.cat([tt for tt, _ in shapes]))[0]
+        keep = torch.cat((times.new_ones(1, dtype=torch.bool), times.diff() > 1e-9))
+        times = times[keep]
 
-        times = np.unique(times)
-        dt = times[1:] - times[:-1]
-        ieps = np.flatnonzero(dt < eps)
-        if np.any(ieps):
-            dtx = np.array([times[0], *dt])
-            dtx[ieps] = (
-                dtx[ieps] + dtx[ieps + 1]
-            )  # Assumes that no more than two too similar values can occur
-            dtx = np.delete(dtx, ieps + 1)
-            times = np.cumsum(dtx)
+        # Each shape contributes 0 outside its own support; superimpose them.
+        amplitudes = torch.stack(
+            [_torch_interp(times, tt, wf) for tt, wf in shapes]
+        ).sum(0)
 
-        amplitudes = np.zeros_like(times)
-        for g in grads:
-            if isinstance(g, TrapGrad):
-                if g.flat_time > 0:  # Trapezoid or triangle
-                    tt = list(cumsum(g.delay, g.rise_time, g.flat_time, g.fall_time))
-                    waveform = [0, g.amplitude, g.amplitude, 0]
-                else:
-                    tt = list(cumsum(g.delay, g.rise_time, g.fall_time))
-                    waveform = [0, g.amplitude, 0]
-            else:
-                tt = g.delay + g.tt
-                waveform = g.waveform
-
-            # Fix rounding for the first and last time points
-            i_min = np.argmin(np.abs(tt[0] - times))
-            t_min = (np.abs(tt[0] - times))[i_min]
-            if t_min < eps:
-                tt[0] = times[i_min]
-            i_min = np.argmin(np.abs(tt[-1] - times))
-            t_min = (np.abs(tt[-1] - times))[i_min]
-            if t_min < eps:
-                tt[-1] = times[i_min]
-
-            if abs(waveform[0]) > eps and tt[0] > eps:
-                tt[0] += eps
-
-            amplitudes += _torch_interp(xp=tt, fp=waveform, x=times)
-
-        grad = make_extended_trapezoid(
+        return make_extended_trapezoid(
             channel=channel, amplitudes=amplitudes, times=times, system=system
         )
 
-        return grad
+    # =========================================================================
+    # At least one arbitrary gradient: rasterize all shapes and superimpose.
+    # =========================================================================
+    common_delay = min(g.delay for g in grads)
+    total_duration = max(g.duration for g in grads)
+    n = round((float(total_duration) - float(common_delay)) / system.grad_raster_time)
+    grid = (torch.arange(n) + 0.5) * system.grad_raster_time
 
-    # Convert to numpy.ndarray for fancy-indexing later on
-    firsts, lasts = np.array(firsts), np.array(lasts)
-    common_delay = np.min(delays)
-    total_duration = np.max(durs)
-    durs = np.array(durs)
+    shapes = [_control_points(g) for g in grads]
+    waveform = torch.stack(
+        [_torch_interp(grid, tt - common_delay, wf) for tt, wf in shapes]
+    ).sum(0)
 
-    # Convert everything to a regularly-sampled waveform
-    waveforms = {}
-    max_length = 0
+    # first/last are the summed edge values of the shapes that actually start at
+    # common_delay / end at total_duration.
+    first = sum(g.first for g in grads if float(g.delay) == float(common_delay))
+    last = sum(g.last for g in grads if float(g.duration) == float(total_duration))
 
-    if any(is_osa):
-        target_raster = 0.5 * system.grad_raster_time
-    else:
-        target_raster = system.grad_raster_time
-
-    for ii in range(len(grads)):
-        g = grads[ii]
-        if not isinstance(g, TrapGrad):
-            if is_arb[ii] or is_osa[ii]:
-                if (
-                    np.any(is_osa) and is_arb[ii]
-                ):  # Porting MATLAB here, maybe a bit ugly
-                    # Interpolate missing samples
-                    idx = np.arange(0, len(g.waveform) - 0.5 + eps, 0.5)
-                    wf = g.waveform
-                    interp_waveform = 0.5 * (
-                        wf[np.floor(idx).astype(int)] + wf[np.ceil(idx).astype(int)]
-                    )
-                    waveforms[ii] = interp_waveform
-                else:
-                    waveforms[ii] = g.waveform
-            else:
-                waveforms[ii] = points_to_waveform(
-                    amplitudes=g.waveform,
-                    times=g.tt,
-                    grad_raster_time=target_raster,
-                )
-        elif isinstance(g, TrapGrad):
-            if g.flat_time > 0:  # Triangle or trapezoid
-                times = np.array(
-                    [
-                        g.delay - common_delay,
-                        g.delay - common_delay + g.rise_time,
-                        g.delay - common_delay + g.rise_time + g.flat_time,
-                        g.delay
-                        - common_delay
-                        + g.rise_time
-                        + g.flat_time
-                        + g.fall_time,
-                    ]
-                )
-                amplitudes = np.array([0, g.amplitude, g.amplitude, 0])
-            else:
-                times = np.array(
-                    [
-                        g.delay - common_delay,
-                        g.delay - common_delay + g.rise_time,
-                        g.delay - common_delay + g.rise_time + g.fall_time,
-                    ]
-                )
-                amplitudes = np.array([0, g.amplitude, 0])
-            waveforms[ii] = points_to_waveform(
-                amplitudes=amplitudes,
-                times=times,
-                grad_raster_time=target_raster,
-            )
-
-        if g.delay - common_delay > 0:
-            # Stop for numpy.arange is not g.delay - common_delay - system.grad_raster_time like in Matlab
-            # so as to include the endpoint
-            waveforms[ii] = np.concatenate(
-                (
-                    np.zeros(round((g.delay - common_delay) / system.grad_raster_time)),
-                    waveforms[ii],
-                )
-            )
-
-        num_points = len(waveforms[ii])
-        max_length = max(num_points, max_length)
-
-    w = np.zeros(max_length)
-    for ii in range(len(grads)):
-        wt = np.zeros(max_length)
-        wt[0 : len(waveforms[ii])] = waveforms[ii]
-        w += wt
-
-    grad = make_arbitrary_grad(
+    return make_arbitrary_grad(
         channel=channel,
-        waveform=w,
+        waveform=waveform,
         system=system,
         max_slew=max_slew,
         max_grad=max_grad,
         delay=common_delay,
-        oversampling=any(is_osa),
-        first=np.sum(firsts[delays == common_delay]),
-        last=np.sum(lasts[durs == total_duration]),
+        first=first,
+        last=last,
     )
-    # Fix the first and the last values
-    # First is defined by the sum of firsts with the minimal delay (common_delay)
-    # Last is defined by the sum of lasts with the maximum duration (total_duration == durs.max())
-    grad.first = np.sum(firsts[np.array(delays) == common_delay])
-    grad.last = np.sum(lasts[durs == durs.max()])
-
-    return grad
