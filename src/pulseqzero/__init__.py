@@ -106,8 +106,7 @@ from .wrapper.grad_funcs import (
     split_gradient_at,
     add_gradients,
 )
-
-from .adapter.sequence import Sequence
+from .wrapper.sequence import Sequence
 
 # No pulseq-zero support yet, calling will raise NotImplementedError.
 # This list should be eliminated before releasing 1.0

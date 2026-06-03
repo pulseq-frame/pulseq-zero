@@ -25,52 +25,52 @@ Additional information, to be integrated into the list below:
 
 ## dir(pypulseq)
 - [x] Opts                             **re-exported**
-- [ ] Sequence
+- [ ] Sequence                          *sequence.py*
   - [ ] adc_times
-  - [ ] add_block
+  - [x] add_block                      **native**
   - [ ] calculate_gradient_spectrum
   - [ ] calculate_kspace
   - [ ] calculate_kspacePP
-  - [ ] calculate_pns
-  - [ ] check_timing
-  - [ ] duration
+  - [x] calculate_pns                  **re-export**
+  - [x] check_timing                   **re-export**
+  - [x] duration                       **native**
   - [ ] evaluate_labels
   - [ ] find_block_by_time
   - [ ] flip_grad_axis
   - [ ] get_block
-  - [ ] get_definition
+  - [x] get_definition                 **native**
   - [ ] get_extension_type_ID
   - [ ] get_extension_type_string
   - [ ] get_gradients
   - [ ] get_raw_block_content_IDs
   - [ ] install
   - [ ] mod_grad_axis
-  - [ ] paper_plot
-  - [ ] plot
-  - [ ] read
+  - [x] paper_plot                     **re-export**
+  - [x] plot                           **re-export**
+  - [-] read                           **no .seq read support**
   - [ ] register_adc_event
   - [ ] register_grad_event
   - [ ] register_label_event
   - [ ] register_rf_event
   - [ ] register_soft_delay_event
-  - [ ] remove_duplicates
+  - [x] remove_duplicates              **native**
   - [ ] rf_from_lib_data
   - [ ] rf_times
   - [ ] set_block
-  - [ ] set_definition
+  - [x] set_definition                 **native**
   - [ ] set_extension_string_ID
-  - [ ] test_report
+  - [x] test_report                    **re-export**
   - [ ] version_major
   - [ ] version_minor
   - [ ] version_revision
   - [ ] waveforms
   - [ ] waveforms_and_times
   - [ ] waveforms_export
-  - [ ] write
+  - [x] write                          **re-export**
 - [-] SigpyPulseOpts                   **no sigpy support**
 - [x] add_gradients                     *grad_funcs.py*
 - [x] align                             *helpers.py*
-- [x] calc_SAR                         **error deprecated**
+- [-] calc_SAR                         **deprecated**
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*
 - [ ] calc_ramp
@@ -89,7 +89,7 @@ Additional information, to be integrated into the list below:
 - [x] make_delay                        *make_basic.py*
 - [x] make_digital_output_pulse         *make_basic.py* **acts as delay in mr0**
 - [x] make_extended_trapezoid           *make_grad.py*
-- [WIP] make_extended_trapezoid_area    *make_grad.py*
+- [x] make_extended_trapezoid_area      *make_grad.py*
 - [x] make_gauss_pulse                  *make_pulse.py*
 - [x] make_label                        *make_basic.py*
 - [x] make_sinc_pulse                   *make_pulse.py*
