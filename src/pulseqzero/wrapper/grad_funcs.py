@@ -3,6 +3,7 @@ from warnings import warn
 from typing import Optional, TypeVar, cast, TypeGuard, overload
 from pypulseq import Opts
 from ..events import TrapGrad, ExtTrapGrad, ArbitraryGrad, Array, Scalar
+from ..math import interp
 import torch
 import numpy as np
 
@@ -38,7 +39,7 @@ def points_to_waveform(
     time_grid = grid * grad_raster_time + grad_raster_time / 2
 
     if isinstance(amplitudes, torch.Tensor):
-        return _torch_interp(x=time_grid, xp=times, fp=amplitudes)
+        return interp(x=time_grid, xp=times, fp=amplitudes)
     else:
         return np.interp(x=time_grid, xp=times, fp=amplitudes)
 
@@ -164,7 +165,7 @@ def split_gradient_at(
         )
 
     tp = torch.as_tensor(time_point, dtype=t_abs.dtype).reshape(1)
-    amp_tp = _torch_interp(tp, t_abs, amp)
+    amp_tp = interp(tp, t_abs, amp)
     left = t_abs < time_point - 1e-9
     right = t_abs > time_point + 1e-9
 
@@ -284,7 +285,7 @@ def add_gradients(
         # tol=0: the axis is built from these exact times, so a strict boundary
         # makes abutting pieces concatenate instead of summing at the seam.
         amplitudes = torch.stack(
-            [_torch_interp(times, tt, wf, tol=0.0) for tt, wf in shapes]
+            [interp(times, tt, wf, left=0, right=0, tol=0.0) for tt, wf in shapes]
         ).sum(0)
 
         return make_extended_trapezoid(
@@ -301,7 +302,7 @@ def add_gradients(
 
     shapes = [_control_points(g) for g in grads]
     waveform = torch.stack(
-        [_torch_interp(grid, tt - common_delay, wf) for tt, wf in shapes]
+        [interp(grid, tt - common_delay, wf, left=0, right=0) for tt, wf in shapes]
     ).sum(0)
 
     # first/last are the summed edge values of the shapes that actually start at
@@ -324,26 +325,6 @@ def add_gradients(
 # =============================================================================
 # Helper functions, not exported directly
 # =============================================================================
-
-
-def _torch_interp(x, xp, fp, tol=None):
-    """torch replacement for numpys interp, returning 0 outside [xp[0], xp[-1]].
-    Differentiable in x, xp and fp. `tol` is the slack on the support test: the
-    default few-ULP slack lets a sample landing on a boundary survive float
-    rounding (when xp and x are computed in different dtypes), which the rasterize
-    path needs; the union path passes tol=0 because its axis comes from the exact
-    control-point times and it relies on a strict boundary to abut shapes."""
-    x, xp, fp = torch.as_tensor(x), torch.as_tensor(xp), torch.as_tensor(fp)
-    xp = xp.to(x.dtype)
-    m = torch.diff(fp) / torch.diff(xp)  # slope
-    b = fp[:-1] - m * xp[:-1]  # offset
-
-    idx = (torch.searchsorted(xp, x, right=False) - 1).clamp(0, xp.numel() - 2)
-    y = m[idx] * x + b[idx]
-    if tol is None:
-        tol = 8 * torch.finfo(x.dtype).eps * xp.abs().amax()  # << raster, >> noise
-    inside = (x >= xp[0] - tol) & (x <= xp[-1] + tol)
-    return torch.where(inside, y, y.new_zeros(()))
 
 
 def _all_traps(grads) -> TypeGuard[list[TrapGrad]]:
