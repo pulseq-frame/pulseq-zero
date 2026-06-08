@@ -83,6 +83,7 @@ from .wrapper.helpers import (
     align,
     traj_to_grad,
 )
+from .wrapper.calc_ramp import calc_ramp
 from .wrapper.make_basic import (
     make_adc,
     make_delay,
@@ -114,8 +115,7 @@ from .wrapper.sequence import Sequence
 
 # No pulseq-zero support, calling will raise NotImplementedError.
 from .not_implemented import (
-    # TODO: these two funtions must still be ported
-    calc_ramp,
+    # TODO: this function must still be ported
     rotate,
     # these will for sure not be supported (documented)
     calc_SAR,

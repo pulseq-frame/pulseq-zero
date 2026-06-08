@@ -397,7 +397,7 @@ def _not_implemented_probes():
             lambda pp, ctx: pp.align(
                 right=[ctx["gx_area"], ctx["gy_flat"], ctx["gz_amp"]]
             )),
-        ("calc_ramp", "not_implemented",
+        ("calc_ramp", "ok",
             lambda pp, ctx: pp.calc_ramp(
                 k0=np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]),
                 k_end=np.array([[1e-3, 2e-3], [0.0, 0.0], [0.0, 0.0]]),

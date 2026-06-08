@@ -71,7 +71,7 @@ Additional information, to be integrated into the list below:
 - [-] calc_SAR                         **deprecated**
 - [x] calc_adc_segments                **re-exported**
 - [x] calc_duration                     *helpers.py*
-- [ ] calc_ramp
+- [x] calc_ramp                         *calc_ramp.py* **uniform slew limits**
 - [x] calc_rf_bandwidth                 *helpers.py* **re-export** **non-differentiable**
 - [x] calc_rf_center                    *helpers.py*
 - [-] disable_trace                    **no trace support**
