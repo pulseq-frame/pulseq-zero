@@ -393,7 +393,7 @@ def _not_implemented_probes():
             lambda pp, ctx: pp.make_sms()),
         ("SigpyPulseOpts", "not_implemented",
             lambda pp, ctx: pp.SigpyPulseOpts()),
-        ("align", "not_implemented",
+        ("align", "ok",
             lambda pp, ctx: pp.align(
                 right=[ctx["gx_area"], ctx["gy_flat"], ctx["gz_amp"]]
             )),
@@ -407,23 +407,21 @@ def _not_implemented_probes():
             lambda pp, ctx: pp.rotate(
                 ctx["gx_area"], ctx["gy_flat"], angle=np.pi / 8, axis="z"
             )),
-        ("traj_to_grad", "not_implemented",
+        ("traj_to_grad", "ok",
             lambda pp, ctx: pp.traj_to_grad(
                 np.linspace(0.0, 1.0, 16), raster_time=s(ctx).grad_raster_time
             )),
         ("calc_SAR", "not_implemented",
             lambda pp, ctx: pp.calc_SAR(ctx["seq"])),
-        ("make_soft_delay", "not_implemented",
+        ("make_soft_delay", "ok",
             lambda pp, ctx: pp.make_soft_delay(
-                hint="user", num=1, default_dur=1e-3
+                hint="user", numID=1, default_duration=1e-3
             )),
         ("enable_trace", "not_implemented",
             lambda pp, ctx: pp.enable_trace()),
         ("disable_trace", "not_implemented",
             lambda pp, ctx: pp.disable_trace()),
-        # split_gradient_at is intentionally not re-exported from pulseq-zero
-        # (commented out in __init__.py); expect AttributeError there.
-        ("split_gradient_at", "missing",
+        ("split_gradient_at", "ok",
             lambda pp, ctx: pp.split_gradient_at(
                 ctx["gx_area"], time_point=1e-3, system=s(ctx)
             )),

@@ -1,6 +1,6 @@
 import pypulseq
 from warnings import warn
-from typing import Optional
+from typing import Optional, cast
 from copy import deepcopy
 import numpy as np
 import torch
@@ -38,7 +38,10 @@ def traj_to_grad(k: Array, raster_time: Optional[float] = None) -> tuple[Array, 
     sr0 = (g[..., 1:] - g[..., :-1]) / raster_time
 
     # Gradient is now sampled between k-space points whilst the slew rate is between gradient points
-    sr = torch.zeros((*sr0.shape[:-1], sr0.shape[-1] + 1))
+    if torch.is_tensor(k):
+        sr = torch.zeros((*sr0.shape[:-1], sr0.shape[-1] + 1))
+    else:
+        sr = np.zeros((*sr0.shape[:-1], sr0.shape[-1] + 1))
     sr[..., 0] = sr0[..., 0]
     sr[..., 1:-1] = 0.5 * (sr0[..., :-1] + sr0[..., 1:])
     sr[..., -1] = sr0[..., -1]
@@ -57,13 +60,13 @@ def align(**kwargs: Event | list[Event]) -> list[Event]:
     alignments = []
     objects: list[Event] = []
     for arg_align, arg_objects in kwargs.items():
-        if isinstance(arg_objects, Event):
+        if isinstance(arg_objects, list):
+            event_list = cast(list[Event], arg_objects)
+            alignments.extend([arg_align] * len(event_list))
+            objects.extend(event_list)
+        else:
             alignments.append(arg_align)
             objects.append(arg_objects)
-        else:
-            assert isinstance(arg_objects, list[Event])
-            alignments.extend([arg_align] * len(arg_objects))
-            objects.extend(arg_objects)
 
     # Copy objects before adjusting delays - do not modify inputs
     objects = deepcopy(objects)
