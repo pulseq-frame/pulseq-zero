@@ -403,7 +403,7 @@ def _not_implemented_probes():
                 k_end=np.array([[1e-3, 2e-3], [0.0, 0.0], [0.0, 0.0]]),
                 system=s(ctx),
             )),
-        ("rotate", "not_implemented",
+        ("rotate", "ok",
             lambda pp, ctx: pp.rotate(
                 ctx["gx_area"], ctx["gy_flat"], angle=np.pi / 8, axis="z"
             )),

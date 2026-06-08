@@ -2,15 +2,17 @@ from copy import copy
 from warnings import warn
 from typing import Optional, TypeVar, cast, TypeGuard, overload
 from pypulseq import Opts
-from ..events import TrapGrad, ExtTrapGrad, ArbitraryGrad, Array, Scalar
+from ..events import TrapGrad, ExtTrapGrad, ArbitraryGrad, Event, Array, Scalar
 from ..math import interp
 import torch
 import numpy as np
 
-GradType = TypeVar("GradType", TrapGrad, ExtTrapGrad, ArbitraryGrad)
+GradType = TypeVar("GradType", bound=TrapGrad | ExtTrapGrad | ArbitraryGrad)
 
 
-def scale_grad(grad: GradType, scale: float, system: Optional[Opts] = None) -> GradType:
+def scale_grad(
+    grad: GradType, scale: Scalar, system: Optional[Opts] = None
+) -> GradType:
     grad = copy(grad)
 
     if isinstance(grad, TrapGrad):
@@ -18,9 +20,10 @@ def scale_grad(grad: GradType, scale: float, system: Optional[Opts] = None) -> G
     elif isinstance(grad, ExtTrapGrad):
         grad.waveform = scale * grad.waveform
     else:
-        grad.waveform = scale * grad.waveform
-        grad.first = scale * grad.first
-        grad.last = scale * grad.last
+        arb = cast(ArbitraryGrad, grad)
+        arb.waveform = scale * arb.waveform
+        arb.first = scale * arb.first
+        arb.last = scale * arb.last
 
     return grad
 
@@ -322,9 +325,91 @@ def add_gradients(
     )
 
 
+def rotate(
+    *args: Event,
+    angle: Scalar,
+    axis: str,
+    system: Optional[Opts] = None,
+) -> list[Event]:
+    """Rotate gradient(s) about `axis` by `angle` (radians).
+
+    This port was written by Claude Code and might not be up to the same quality standards as the rest of pulseq-zero.
+
+    Gradients parallel to the rotation axis and non-gradient events pass through
+    unchanged. `angle` may be a torch tensor so the rotation is differentiable.
+    """
+    if axis not in ["x", "y", "z"]:
+        raise ValueError(f"axis must be 'x', 'y', or 'z'. Got: {axis}")
+    if system is None:
+        system = Opts.default
+
+    remaining = ["x", "y", "z"]
+    remaining.remove(axis)
+    ax1, ax2 = remaining
+
+    cos_a = torch.cos(torch.as_tensor(angle, dtype=torch.float64))
+    sin_a = torch.sin(torch.as_tensor(angle, dtype=torch.float64))
+
+    bypass: list[Event] = []
+    on_ax1: list[TrapGrad | ExtTrapGrad | ArbitraryGrad] = []
+    on_ax2: list[TrapGrad | ExtTrapGrad | ArbitraryGrad] = []
+
+    for event in args:
+        if (
+            not isinstance(event, (TrapGrad, ExtTrapGrad, ArbitraryGrad))
+            or event.channel == axis
+        ):
+            bypass.append(event)
+        elif event.channel == ax1:
+            on_ax1.append(event)
+        else:
+            on_ax2.append(event)
+
+    # ax1 -> cos(a)*ax1 + sin(a)*ax2
+    # ax2 -> -sin(a)*ax1 + cos(a)*ax2
+    new_ax1: list[TrapGrad | ExtTrapGrad | ArbitraryGrad] = []
+    new_ax2: list[TrapGrad | ExtTrapGrad | ArbitraryGrad] = []
+    max_mag = 0.0
+
+    for g in on_ax1:
+        max_mag = max(max_mag, _get_abs_mag(g))
+        new_ax1.append(scale_grad(g, cos_a))
+        g2 = scale_grad(g, sin_a)
+        g2.channel = ax2
+        new_ax2.append(g2)
+
+    for g in on_ax2:
+        max_mag = max(max_mag, _get_abs_mag(g))
+        new_ax2.append(scale_grad(g, cos_a))
+        g1 = scale_grad(g, -sin_a)
+        g1.channel = ax1
+        new_ax1.append(g1)
+
+    threshold = 1e-6 * max_mag
+
+    new_ax1 = [g for g in new_ax1 if _get_abs_mag(g) >= threshold]
+    new_ax2 = [g for g in new_ax2 if _get_abs_mag(g) >= threshold]
+
+    result: list[TrapGrad | ExtTrapGrad | ArbitraryGrad] = []
+    if new_ax1:
+        result.append(add_gradients(new_ax1, system=system))
+    if new_ax2:
+        result.append(add_gradients(new_ax2, system=system))
+
+    result = [g for g in result if _get_abs_mag(g) >= threshold]
+
+    return [*bypass, *result]
+
+
 # =============================================================================
 # Helper functions, not exported directly
 # =============================================================================
+
+
+def _get_abs_mag(grad: TrapGrad | ExtTrapGrad | ArbitraryGrad) -> float:
+    if isinstance(grad, TrapGrad):
+        return float(abs(torch.as_tensor(grad.amplitude).detach()))
+    return float(torch.as_tensor(grad.waveform).detach().abs().max())
 
 
 def _all_traps(grads) -> TypeGuard[list[TrapGrad]]:

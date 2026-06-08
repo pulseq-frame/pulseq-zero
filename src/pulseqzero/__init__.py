@@ -107,17 +107,15 @@ from .wrapper.make_grad import (
 from .wrapper.grad_funcs import (
     scale_grad,
     points_to_waveform,
+    rotate,
     split_gradient,
     split_gradient_at,
     add_gradients,
 )
 from .wrapper.sequence import Sequence
 
-# No pulseq-zero support, calling will raise NotImplementedError.
+# No pulseq-zero support (documented), calling will raise NotImplementedError.
 from .not_implemented import (
-    # TODO: this function must still be ported
-    rotate,
-    # these will for sure not be supported (documented)
     calc_SAR,
     enable_trace,
     disable_trace,

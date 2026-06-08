@@ -97,7 +97,7 @@ Additional information, to be integrated into the list below:
 - [x] make_trapezoid                    *make_grad.py*
 - [x] make_trigger                      *make_basic.py* **acts as delay in mr0**
 - [x] points_to_waveform                *grad_funcs.py*
-- [ ] rotate
+- [x] rotate                             *grad_funcs.py*
 - [x] round_half_up                     *math.py*
 - [x] scale_grad                        *grad_funcs.py*
 - [-] sigpy_n_seq                      **no sigpy support**
