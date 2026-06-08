@@ -4,7 +4,7 @@ from typing import Optional
 from copy import deepcopy
 import numpy as np
 import torch
-from ..events import Scalar, RfPulse, Event, Array
+from ..events import Scalar, RfPulse, Event, Array, SoftDelay
 from pypulseq import Opts
 
 
@@ -70,14 +70,18 @@ def align(**kwargs: Event | list[Event]) -> list[Event]:
     dur = calc_duration(*objects)
 
     # Set new delays
-    for i in range(len(objects)):
-        if alignments[i] == "left":
-            objects[i].delay = 0
-        elif alignments[i] == "center":
-            objects[i].delay = (dur - objects[i].duration) / 2
-        elif alignments[i] == "right":
-            objects[i].delay = dur - (objects[i].duration - objects[i].delay)
-            if objects[i].delay < 0:
+    for object, alignment in zip(objects, alignments):
+        # don't try to align soft delays - makes no sense
+        if isinstance(object, SoftDelay):
+            continue
+
+        if alignment == "left":
+            object.delay = 0
+        elif alignment == "center":
+            object.delay = (dur - object.duration) / 2
+        elif alignment == "right":
+            object.delay = dur - (object.duration - object.delay)
+            if object.delay < 0:
                 raise ValueError("Bug: align() attempts to set a negative delay")
 
     return objects

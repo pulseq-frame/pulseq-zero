@@ -274,7 +274,7 @@ class SoftDelay:
 
 
 # Type for all pulseq-zero event types
-Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay
+Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay | SoftDelay
 
 
 # Helper used in some of the class properties - helps to stay numpy / torch agnostic
