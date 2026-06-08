@@ -1,7 +1,7 @@
 import torch
 import MRzeroCore as mr0
-from .. import calc_duration
-from ..events import Adc, Delay, RfPulse, TrapGrad, ExtTrapGrad, ArbitraryGrad
+from . import calc_duration
+from .events import Adc, Delay, SoftDelay, RfPulse, TrapGrad, ExtTrapGrad, ArbitraryGrad
 
 def convert_tensors_to_float32(obj):
     if hasattr(obj, '__dataclass_fields__'):
@@ -23,7 +23,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         grad_z = None
         for ev in block:
             ev = convert_tensors_to_float32(ev)
-            if isinstance(ev, Delay):
+            if isinstance(ev, (Delay, SoftDelay)):
                 assert delay is None
                 delay = ev
             if isinstance(ev, Adc):

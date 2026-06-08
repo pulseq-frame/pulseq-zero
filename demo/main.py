@@ -18,7 +18,7 @@ import torch
 import pulseqzero
 import sys
 sys.modules["pypulseq"] = pulseqzero
-from write_tse import main as build_tse
+from write_tse import main as build_tse  # noqa: E402
 
 
 N_ECHO = 16

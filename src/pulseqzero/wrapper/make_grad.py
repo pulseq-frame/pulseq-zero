@@ -1,23 +1,24 @@
 import torch
-from typing import Union, cast, Optional
+from typing import cast, Literal, Optional, overload
 from pypulseq import Opts
 from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
+from .grad_funcs import points_to_waveform
 import numpy as np
 
 
 def make_trapezoid(
     channel: str,
-    amplitude: Union[Scalar, None] = None,
-    area: Union[Scalar, None] = None,
+    amplitude: Optional[Scalar] = None,
+    area: Optional[Scalar] = None,
     delay: Scalar = 0.0,
-    duration: Union[Scalar, None] = None,
-    fall_time: Union[Scalar, None] = None,
-    flat_area: Union[Scalar, None] = None,
-    flat_time: Union[Scalar, None] = None,
-    max_grad: Union[Scalar, None] = None,
-    max_slew: Union[Scalar, None] = None,
-    rise_time: Union[Scalar, None] = None,
-    system: Union[Opts, None] = None,
+    duration: Optional[Scalar] = None,
+    fall_time: Optional[Scalar] = None,
+    flat_area: Optional[Scalar] = None,
+    flat_time: Optional[Scalar] = None,
+    max_grad: Optional[Scalar] = None,
+    max_slew: Optional[Scalar] = None,
+    rise_time: Optional[Scalar] = None,
+    system: Optional[Opts] = None,
 ) -> TrapGrad:
     if channel not in ["x", "y", "z"]:
         raise ValueError(
@@ -138,13 +139,13 @@ def calculate_shortest_params_for_area(
 
 def make_arbitrary_grad(
     channel: str,
-    waveform: np.ndarray,
-    first: Union[float, None] = None,
-    last: Union[float, None] = None,
-    delay: float = 0.0,
-    max_grad: Union[float, None] = None,
-    max_slew: Union[float, None] = None,
-    system: Union[Opts, None] = None,
+    waveform: Array,
+    first: Optional[Scalar] = None,
+    last: Optional[Scalar] = None,
+    delay: Scalar = 0.0,
+    max_grad: Optional[Scalar] = None,
+    max_slew: Optional[Scalar] = None,
+    system: Optional[Opts] = None,
     oversampling: bool = False,
 ) -> ArbitraryGrad:
     if system is None:
@@ -181,6 +182,28 @@ def make_arbitrary_grad(
     )
 
 
+@overload
+def make_extended_trapezoid(
+    channel: str,
+    amplitudes: Optional[Array] = ...,
+    convert_to_arbitrary: Literal[False] = ...,
+    max_grad: Scalar = ...,
+    max_slew: Scalar = ...,
+    skip_check: bool = ...,
+    system: Optional[Opts] = ...,
+    times: Optional[Array] = ...,
+) -> ExtTrapGrad: ...
+@overload
+def make_extended_trapezoid(
+    channel: str,
+    amplitudes: Optional[Array] = ...,
+    convert_to_arbitrary: Literal[True] = ...,
+    max_grad: Scalar = ...,
+    max_slew: Scalar = ...,
+    skip_check: bool = ...,
+    system: Optional[Opts] = ...,
+    times: Optional[Array] = ...,
+) -> ArbitraryGrad: ...
 def make_extended_trapezoid(
     channel: str,
     amplitudes: Optional[Array] = None,
@@ -210,10 +233,17 @@ def make_extended_trapezoid(
         raise ValueError("Times and amplitudes must have the same length.")
 
     if convert_to_arbitrary:
-        raise NotImplementedError
-        # # Represent the extended trapezoid on the regularly sampled time grid
+        # Represent the extended trapezoid on the regularly sampled time grid
+        # Time regridding is not differentiable
+        if isinstance(times, torch.Tensor) and times.requires_grad:
+            raise ValueError(
+                "make_extended_trapezoid(convert_to_arbitrary=True):"
+                "time regridding is not differentiable but times.requires_grad == True"
+            )
         waveform = points_to_waveform(
-            times=times, amplitudes=amplitudes, grad_raster_time=system.grad_raster_time
+            times=np.asarray(times),
+            amplitudes=amplitudes,
+            grad_raster_time=system.grad_raster_time,
         )
         return make_arbitrary_grad(
             channel=channel,
@@ -225,3 +255,288 @@ def make_extended_trapezoid(
         )
     else:
         return ExtTrapGrad(channel=channel, waveform=amplitudes, _times=times)
+
+
+@overload
+def make_extended_trapezoid_area(
+    area: Scalar,
+    channel: str,
+    grad_start: Scalar,
+    grad_end: Scalar,
+    convert_to_arbitrary: Literal[False] = ...,
+    system: Optional[Opts] = ...,
+    duration: Optional[Scalar] = ...,
+    max_grad: Optional[Scalar] = ...,
+    max_slew: Optional[Scalar] = ...,
+) -> tuple[ExtTrapGrad, Array, Array]: ...
+@overload
+def make_extended_trapezoid_area(
+    area: Scalar,
+    channel: str,
+    grad_start: Scalar,
+    grad_end: Scalar,
+    convert_to_arbitrary: Literal[True] = ...,
+    system: Optional[Opts] = ...,
+    duration: Optional[Scalar] = ...,
+    max_grad: Optional[Scalar] = ...,
+    max_slew: Optional[Scalar] = ...,
+) -> tuple[ArbitraryGrad, Array, Array]: ...
+def make_extended_trapezoid_area(
+    area: Scalar,
+    channel: str,
+    grad_start: Scalar,
+    grad_end: Scalar,
+    convert_to_arbitrary: bool = False,
+    system: Optional[Opts] = None,
+    duration: Optional[Scalar] = None,
+    max_grad: Optional[Scalar] = None,
+    max_slew: Optional[Scalar] = None,
+) -> tuple[ArbitraryGrad | ExtTrapGrad, Array, Array]:
+    from pypulseq import eps
+    from warnings import warn
+    warn(
+        "This was adapted from pypulseq; made differentiable with LLMs. "
+        "Might not be up to the same standard as the rest of pulseq-zero."
+    )
+    if system is None:
+        system = Opts.default
+    if max_grad is None:
+        max_grad = system.max_grad
+    if max_slew is None:
+        max_slew = system.max_slew
+
+    if channel not in ["x", "y", "z"]:
+        raise ValueError(
+            f"Invalid channel. Must be one of `x`, `y` or `z`. Passed: {channel}"
+        )
+    if duration is not None and duration <= 0:
+        raise ValueError("Duration must be a positive number.")
+
+    raster_time = system.grad_raster_time
+
+    # The timing is found by a discrete grid search (below) and is not
+    # differentiable, so that runs on detached floats. The live tensors are kept
+    # aside and autograd is reconnected through grad_amp once the timing is fixed.
+    # float64 keeps the closing area check tight.
+    area_t = torch.as_tensor(area, dtype=torch.float64)
+    grad_start_t = torch.as_tensor(grad_start, dtype=torch.float64)
+    grad_end_t = torch.as_tensor(grad_end, dtype=torch.float64)
+    area = float(area_t.detach())
+    grad_start = float(grad_start_t.detach())
+    grad_end = float(grad_end_t.detach())
+    max_grad = float(cast(Scalar, max_grad))
+    max_slew = float(cast(Scalar, max_slew))
+    if duration is not None:
+        # round to ns to shed float noise (e.g. a float32 tensor input) before the
+        # ceil-to-raster snap below would otherwise spill into an extra raster.
+        duration = round(float(torch.as_tensor(duration, dtype=torch.float64).detach()), 9)
+
+    def _to_raster(time: float) -> float:
+        return np.ceil(time / raster_time) * raster_time
+
+    def _calc_ramp_time(grad_1: float, grad_2: float) -> float:
+        return _to_raster(abs(grad_1 - grad_2) / max_slew)
+
+    def _find_solution(duration: int) -> tuple[int, int, int, float] | None:
+        """Find extended trapezoid gradient waveform for given duration.
+
+        The function performs a grid search over all possible ramp-up, ramp-down and flat times
+        for the given duration and returns the solution with the lowest slew rate.
+
+        Parameters
+        ----------
+        duration
+            duration of the gradient in integer multiples of raster_time
+
+        Returns
+        -------
+            Tuple of ramp-up time, flat time, ramp-down time, gradient amplitude or None if no solution was found
+        """
+        # Determine timings to check for possible solutions
+        ramp_up_times = []
+        ramp_down_times = []
+
+        # First, consider solutions that use maximum slew rate:
+        # Analytically calculate calculate the point where:
+        #   grad_start + ramp_up_time * max_slew == grad_end + ramp_down_time * max_slew
+        ramp_up_time = (duration * max_slew * raster_time - grad_start + grad_end) / (
+            2 * max_slew * raster_time
+        )
+        ramp_up_time = round(ramp_up_time)
+
+        # Check if gradient amplitude exceeds max_grad, if so, adjust ramp
+        # times for a trapezoidal gradient with maximum slew rate.
+        if grad_start + ramp_up_time * max_slew * raster_time > max_grad + eps:
+            ramp_up_time = round(_calc_ramp_time(grad_start, max_grad) / raster_time)
+            ramp_down_time = round(_calc_ramp_time(grad_end, max_grad) / raster_time)
+        else:
+            ramp_down_time = duration - ramp_up_time
+
+        # Add possible solution if timing is valid
+        if (
+            ramp_up_time > 0
+            and ramp_down_time > 0
+            and ramp_up_time + ramp_down_time <= duration
+        ):
+            ramp_up_times.append(ramp_up_time)
+            ramp_down_times.append(ramp_down_time)
+
+        # Analytically calculate calculate the point where:
+        #   grad_start - ramp_up_time * max_slew == grad_end - ramp_down_time * max_slew
+        ramp_up_time = (duration * max_slew * raster_time + grad_start - grad_end) / (
+            2 * max_slew * raster_time
+        )
+        ramp_up_time = round(ramp_up_time)
+
+        # Check if gradient amplitude exceeds -max_grad, if so, adjust ramp
+        # times for a trapezoidal gradient with maximum slew rate.
+        if grad_start - ramp_up_time * max_slew * raster_time < -max_grad - eps:
+            ramp_up_time = round(_calc_ramp_time(grad_start, -max_grad) / raster_time)
+            ramp_down_time = round(_calc_ramp_time(grad_end, -max_grad) / raster_time)
+        else:
+            ramp_down_time = duration - ramp_up_time
+
+        # Add possible solution if timing is valid
+        if (
+            ramp_up_time > 0
+            and ramp_down_time > 0
+            and ramp_up_time + ramp_down_time <= duration
+        ):
+            ramp_up_times.append(ramp_up_time)
+            ramp_down_times.append(ramp_down_time)
+
+        # Second, try any solution with flat_time == 0
+        # This appears to be necessary for many cases, but going through all
+        # timings here is probably too conservative still.
+        for ramp_up_time in range(1, duration):
+            ramp_up_times.append(ramp_up_time)
+            ramp_down_times.append(duration - ramp_up_time)
+
+        time_ramp_up = np.array(ramp_up_times)
+        time_ramp_down = np.array(ramp_down_times)
+
+        # Calculate corresponding flat times
+        flat_time = duration - time_ramp_up - time_ramp_down
+
+        # Filter search space for valid timings (flat time >= 0)
+        valid_indices = flat_time >= 0
+        time_ramp_up = time_ramp_up[valid_indices]
+        time_ramp_down = time_ramp_down[valid_indices]
+        flat_time = flat_time[valid_indices]
+
+        # Calculate gradient strength for given timing using analytical solution
+        grad_amp = -(
+            time_ramp_up * raster_time * grad_start
+            + time_ramp_down * raster_time * grad_end
+            - 2 * area
+        ) / ((time_ramp_up + 2 * flat_time + time_ramp_down) * raster_time)
+
+        # Calculate slew rates for given timings
+        slew_rate1 = abs(grad_start - grad_amp) / (time_ramp_up * raster_time)
+        slew_rate2 = abs(grad_end - grad_amp) / (time_ramp_down * raster_time)
+
+        # Filter solutions that satisfy max_grad and max_slew constraints
+        valid_indices = (
+            (abs(grad_amp) <= max_grad + eps)
+            & (slew_rate1 <= max_slew + eps)
+            & (slew_rate2 <= max_slew + eps)
+        )
+        solutions = np.flatnonzero(valid_indices)
+
+        # Check if any valid solutions were found
+        if solutions.shape[0] == 0:
+            return None
+
+        # Find solution with lowest slew rate and return it
+        ind = np.argmin(slew_rate1[valid_indices] + slew_rate2[valid_indices])
+        ind = solutions[ind]
+        return (
+            int(time_ramp_up[ind]),
+            int(flat_time[ind]),
+            int(time_ramp_down[ind]),
+            float(grad_amp[ind]),
+        )
+
+    if duration is None:  # duration was not given
+        # Perform a linear search
+        # This is necessary because there can exist a dead space where solutions
+        # do not exist for some durations longer than the optimal duration. The
+        # binary search below fails to find the optimum in those cases.
+        # TODO: Check if range is sufficient, try to calculate the dead space.
+        min_duration = max(
+            round(_calc_ramp_time(grad_end, grad_start) / raster_time), 2
+        )
+
+        # Calculate duration needed to ramp down gradient to zero.
+        # From this point onwards, solutions can always be found by extending
+        # the duration and doing a binary search.
+        max_duration = max(
+            round(_calc_ramp_time(0, grad_start) / raster_time),
+            round(_calc_ramp_time(0, grad_end) / raster_time),
+            min_duration,
+        )
+
+        # Linear search
+        solution = None
+        for current_duration in range(min_duration, max_duration + 1):
+            solution = _find_solution(current_duration)
+            if solution is not None:
+                break
+
+        # Perform a binary search for duration > max_duration if no solution was found
+        if solution is None:
+            # First, find the upper limit on duration where a solution exists by
+            # exponentially expanding the duration.
+            while solution is None:
+                max_duration *= 2
+                solution = _find_solution(max_duration)
+
+            def binary_search(fun, lower_limit, upper_limit):
+                if lower_limit == upper_limit - 1:
+                    return fun(upper_limit)
+
+                test_value = (upper_limit + lower_limit) // 2
+
+                if fun(test_value):
+                    return binary_search(fun, lower_limit, test_value)
+                else:
+                    return binary_search(fun, test_value, upper_limit)
+
+            solution = binary_search(_find_solution, max_duration // 2, max_duration)
+
+    else:  # duration was given, so calculate solution for this duration
+        duration_raster = max(round(_to_raster(duration) / raster_time), 2)
+        solution = _find_solution(duration_raster)
+
+        if solution is None:
+            raise ValueError(
+                f"Could not find a solution for area={area} and duration={duration}."
+            )
+
+    # Reconnect autograd: with the timing fixed (n_up / n_flat / n_down raster
+    # counts), grad_amp is the exact analytic amplitude that hits `area` for the
+    # live grad_start / grad_end, so gradients flow through it and the waveform.
+    n_up, n_flat, n_down = solution[0], solution[1], solution[2]
+    grad_amp = (
+        2 * area_t - (n_up * grad_start_t + n_down * grad_end_t) * raster_time
+    ) / ((n_up + 2 * n_flat + n_down) * raster_time)
+
+    if n_flat > 0:
+        times = np.array([0, n_up, n_up + n_flat, n_up + n_flat + n_down]) * raster_time
+        amplitudes = torch.stack([grad_start_t, grad_amp, grad_amp, grad_end_t])
+    else:
+        times = np.array([0, n_up, n_up + n_down]) * raster_time
+        amplitudes = torch.stack([grad_start_t, grad_amp, grad_end_t])
+
+    grad = make_extended_trapezoid(
+        channel=channel,
+        amplitudes=amplitudes,
+        convert_to_arbitrary=convert_to_arbitrary,
+        system=system,
+        times=times,
+    )
+
+    if not abs(float(torch.as_tensor(grad.area).detach()) - area) < eps:
+        raise ValueError(f"Could not find a solution for area={area}.")
+
+    return grad, grad.tt, grad.waveform

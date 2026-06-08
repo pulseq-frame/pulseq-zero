@@ -9,6 +9,10 @@ gradient descent optimization with a seq script in the loop becomes possible.
 """
 # TODO: write the module docstring.
 
+# We mimic the version of the installed pypulseq in case users rely on it
+import importlib.metadata
+__version__ = importlib.metadata.version("pypulseq")
+
 __all__ = [
     "Opts",
     "Sequence",
@@ -52,7 +56,7 @@ __all__ = [
     "scale_grad",
     "sigpy_n_seq",
     "split_gradient",
-    # "split_gradient_at",
+    "split_gradient_at",
     "traj_to_grad",
 ]
 
@@ -72,20 +76,21 @@ from pypulseq.supported_labels_rf_use import get_supported_rf_uses
 # differentiable math helper functions
 from .math import ceil, floor, round, round_half_up
 
-# simple pulseq helper functions made differentiable
-from .helpers import (
+from .wrapper.helpers import (
     calc_duration,
     calc_rf_bandwidth,
     calc_rf_center,
+    align,
+    traj_to_grad,
 )
-
-# the "meat" of pulseq-zero: differentiable impls of seq building funcs
-from .wrapper.make_adc import make_adc
+from .wrapper.calc_ramp import calc_ramp
 from .wrapper.make_basic import (
+    make_adc,
     make_delay,
     make_trigger,
     make_digital_output_pulse,
     make_label,
+    make_soft_delay,
 )
 from .wrapper.make_pulse import (
     make_block_pulse,
@@ -95,34 +100,28 @@ from .wrapper.make_pulse import (
 )
 from .wrapper.make_grad import (
     make_trapezoid,
-    make_extended_trapezoid,
     make_arbitrary_grad,
+    make_extended_trapezoid,
+    make_extended_trapezoid_area,
 )
-from .wrapper.grad_funcs import scale_grad, points_to_waveform
-
-from .adapter.sequence import Sequence
-from .adapter.extended_trap_grad import make_extended_trapezoid_area
-from .adapter.grads import (
+from .wrapper.grad_funcs import (
+    scale_grad,
+    points_to_waveform,
+    rotate,
     split_gradient,
-    # split_gradient_at,
+    split_gradient_at,
     add_gradients,
 )
+from .wrapper.sequence import Sequence
 
-# No pulseq-zero support yet, calling will raise NotImplementedError.
-# This list should be eliminated before releasing 1.0
+# No pulseq-zero support (documented), calling will raise NotImplementedError.
 from .not_implemented import (
-    make_adiabatic_pulse,
-    SigpyPulseOpts,
-    align,
-    calc_ramp,
-    rotate,
-    traj_to_grad,
-    make_soft_delay,
     calc_SAR,
-    # these will for sure not be supported (documented)
     enable_trace,
     disable_trace,
+    SigpyPulseOpts,
     sigpy_n_seq,
+    make_adiabatic_pulse,
     make_slr,
     make_sms,
 )

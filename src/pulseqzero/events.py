@@ -173,6 +173,11 @@ class ExtTrapGrad:
     def delay(self) -> Scalar:
         return self._times[0]
 
+    @delay.setter
+    def delay(self, value: Scalar) -> None:
+        times, value = _coerce(self._times, value)
+        self._times = times - times[0] + value
+
     @property
     def tt(self) -> Array:
         return self._times - self.delay
@@ -183,8 +188,9 @@ class ExtTrapGrad:
 
     @property
     def area(self) -> Scalar:
-        dt = self._times[1:] - self._times[:-1]
-        mean_amp = 0.5 * (self.waveform[1:] + self.waveform[:-1])
+        times, waveform = _coerce(self._times, self.waveform)
+        dt = times[1:] - times[:-1]
+        mean_amp = 0.5 * (waveform[1:] + waveform[:-1])
         return (dt * mean_amp).sum()
 
     @property
@@ -245,5 +251,36 @@ class Delay:
         return self._pp_event
 
 
+@dataclass
+class SoftDelay:
+    hint: str
+    numID: Optional[int]
+    offset: Scalar
+    factor: Scalar
+    default_duration: Scalar  # Used if hint is not given or for computed dur.
+
+    @property
+    def duration(self) -> Scalar:
+        return self.default_duration
+
+    def to_pulseq(self, system: Opts) -> SimpleNamespace:
+        return pp.make_soft_delay(
+            self.hint,
+            self.numID,
+            float(self.offset),
+            float(self.factor),
+            float(self.default_duration),
+        )
+
+
 # Type for all pulseq-zero event types
-Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay
+Event = RfPulse | TrapGrad | ArbitraryGrad | ExtTrapGrad | Adc | Delay | SoftDelay
+
+
+# Helper used in some of the class properties - helps to stay numpy / torch agnostic
+def _coerce(*operands: Array | Scalar) -> tuple:
+    """Coerce operands to torch if any is a tensor. mixing them in arithmetic
+    (numpy * tensor) raises, coercing keeps it working and preserves autograd."""
+    if any(isinstance(x, torch.Tensor) for x in operands):
+        return tuple(torch.as_tensor(x) for x in operands)
+    return operands
