@@ -547,16 +547,20 @@ def write_support_matrix_markdown(rows, out_md_path):
     print(f"\nMarkdown report written: {out_md_path}")
 
 
-def summarize_pass_fail(rows):
+def summarize_pass_fail(rows) -> int:
+    """Print summary and return the number of mismatches."""
     pz_pass = sum(1 for _, _, pz, exp in rows if pz == exp)
     pz_total = len(rows)
+    mismatches = pz_total - pz_pass
     print(
         f"\npulseq-zero matches expected behavior on "
         f"{pz_pass}/{pz_total} probes."
     )
+    return mismatches
 
 
 def main():
+    import sys
     pp_results, _ = probe_module(
         pypulseq, "pypulseq", "test_pypulseq_sequence_all_funcs.seq"
     )
@@ -566,10 +570,11 @@ def main():
 
     print_probe_details("pulseqzero", pz_results)
     rows = print_support_matrix(pp_results, pz_results)
-    summarize_pass_fail(rows)
+    mismatches = summarize_pass_fail(rows)
     write_support_matrix_markdown(
         rows, "test_pypulseq_pulseqzero_support_matrix.md"
     )
+    sys.exit(mismatches)
 
 
 if __name__ == "__main__":
