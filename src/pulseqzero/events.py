@@ -257,7 +257,7 @@ class SoftDelay:
     numID: Optional[int]
     offset: Scalar
     factor: Scalar
-    default_duration: Scalar  # used in some obscure block_duration code?
+    default_duration: Scalar  # Used if hint is not given or for computed dur.
 
     @property
     def duration(self) -> Scalar:

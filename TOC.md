@@ -13,9 +13,7 @@ Methods are marked with one of the following:
 ---
 
 Additional information, to be integrated into the list below:
-- missing functions new in 1.5:
-  `make_soft_delay`, `Sequence.apply_soft_delay`
-  `Opts.set_as_default()`
+- missing functions new in 1.5: `Sequence.apply_soft_delay`
 - how to implement `__version__`?
 - support for new pulseq attributes:
   `freq_ppm`, `phase_ppma`, `center`, `phase_modulation`, `oversampling`, `Opt.adc_samples_limit/divisor` `use`
@@ -25,47 +23,47 @@ Additional information, to be integrated into the list below:
 
 ## dir(pypulseq)
 - [x] Opts                             **re-exported**
-- [ ] Sequence                          *sequence.py*
+- [x] Sequence                          *sequence.py*
   - [x] adc_times                      **re-export** **non-differentiable**
   - [x] add_block                      **native**
-  - [ ] apply_soft_delay
+  - [x] apply_soft_delay               **native**
   - [x] calculate_gradient_spectrum    **re-export** **non-differentiable**
   - [x] calculate_kspace               **re-export** **non-differentiable**
   - [-] calculate_kspacePP             **deprecated**
   - [x] calculate_pns                  **re-export**
   - [x] check_timing                   **re-export**
   - [x] duration                       **native**
-  - [ ] evaluate_labels
-  - [ ] find_block_by_time
-  - [ ] flip_grad_axis
-  - [ ] get_block
+  - [x] evaluate_labels                **re-export**
+  - [x] find_block_by_time             **native**
+  - [x] flip_grad_axis                 **native**
+  - [x] get_block                      **native**
   - [x] get_definition                 **native**
-  - [ ] get_extension_type_ID
-  - [ ] get_extension_type_string
-  - [ ] get_gradients
-  - [ ] get_raw_block_content_IDs
+  - [-] get_extension_type_ID          **no custom extension support**
+  - [-] get_extension_type_string      **no custom extension support**
+  - [-] get_gradients                  **no scipy support**
+  - [-] get_raw_block_content_IDs      **no ID support**
   - [x] install                        **re-export**
-  - [ ] mod_grad_axis
+  - [x] mod_grad_axis                  **native**
   - [x] paper_plot                     **re-export**
   - [x] plot                           **re-export**
   - [-] read                           **no .seq read support**
-  - [ ] register_adc_event
-  - [ ] register_grad_event
-  - [ ] register_label_event
-  - [ ] register_rf_event
-  - [ ] register_soft_delay_event
+  - [-] register_adc_event             **no internal libraries**
+  - [-] register_grad_event            **no internal libraries**
+  - [-] register_label_event           **no internal libraries**
+  - [-] register_rf_event              **no internal libraries**
+  - [-] register_soft_delay_event      **no internal libraries**
   - [x] remove_duplicates              **native**
-  - [ ] rf_from_lib_data
+  - [-] rf_from_lib_data               **no internal libraries**
   - [x] rf_times                       **re-export** **non-differentiable**
-  - [ ] set_block
+  - [x] set_block                      **native**
   - [x] set_definition                 **native**
-  - [ ] set_extension_string_ID
+  - [-] set_extension_string_ID        **no custom extension support**
   - [x] test_report                    **re-export**
-  - [ ] version_major
-  - [ ] version_minor
-  - [ ] version_revision
-  - [ ] waveforms
-  - [ ] waveforms_and_times
+  - [x] version_major                  **re-export**
+  - [x] version_minor                  **re-export**
+  - [x] version_revision               **re-export**
+  - [x] waveforms                      **re-export** **non-differentiable**
+  - [x] waveforms_and_times            **re-export** **non-differentiable**
   - [x] write                          **re-export**
 - [-] SigpyPulseOpts                   **no sigpy support**
 - [x] add_gradients                     *grad_funcs.py*

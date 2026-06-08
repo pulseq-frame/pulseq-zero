@@ -9,6 +9,10 @@ gradient descent optimization with a seq script in the loop becomes possible.
 """
 # TODO: write the module docstring.
 
+# We mimic the version of the installed pypulseq in case users rely on it
+import importlib.metadata
+__version__ = importlib.metadata.version("pypulseq")
+
 __all__ = [
     "Opts",
     "Sequence",

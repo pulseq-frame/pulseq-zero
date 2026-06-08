@@ -8,11 +8,15 @@ from pypulseq.utils.seq_plot import SeqPlot
 
 from typing import Optional
 from types import SimpleNamespace
-from .. import calc_duration, Opts, seq_convert
-from ..events import Event
+from .. import calc_duration, Opts, seq_convert, __version__
+from ..events import Event, SoftDelay, TrapGrad, ExtTrapGrad, ArbitraryGrad
 
 
 class Sequence:
+    version_major = int(__version__.split(".")[0])
+    version_minor = int(__version__.split(".")[1])
+    version_revision = __version__.split(".")[2]
+
     def __init__(self, system: Optional[Opts] = None, use_block_cache=True):
         self.definitions = {}
         self.blocks: list[list[Event]] = []
@@ -29,17 +33,60 @@ class Sequence:
     def add_block(self, *args: Event):
         self.blocks.append([copy(arg) for arg in args])
 
+    def apply_soft_delay(self, **kwargs):
+        # In pypulseq, this sets an extra block_duration cache of the sequence.
+        # Here we will instead set default_duration to the computed values.
+        for block in self.blocks:
+            for event in block:
+                if isinstance(event, SoftDelay):
+                    if event.hint in kwargs:
+                        event.default_duration = (
+                            kwargs[event.hint] / event.factor + event.offset
+                        )
+
     def duration(self):
         duration = sum(calc_duration(*block) for block in self.blocks)
         num_blocks = len(self.blocks)
         event_count = sum(len(b) for b in self.blocks)
         return duration, num_blocks, event_count
 
+    def find_block_by_time(self, t: float) -> int | None:
+        time = np.cumsum([calc_duration(*block) for block in self.blocks])
+        index = np.searchsorted(time, t, side="right").item()
+
+        if index > len(self.blocks):
+            return None
+        else:
+            return index
+
+    def flip_grad_axis(self, axis: str) -> None:
+        self.mod_grad_axis(axis, modifier=-1)
+
+    def get_block(self, block_index: int) -> list[Event]:
+        return self.blocks[block_index]
+
     def get_definition(self, key):
         if key in self.definitions:
             return self.definitions[key]
         else:
             return ""
+
+    def mod_grad_axis(self, axis: str, modifier: float) -> None:
+        if axis not in ["x", "y", "z"]:
+            raise ValueError(
+                f"Invalid axis. Must be one of 'x', 'y','z'. Passed: {axis}"
+            )
+
+        for block in self.blocks:
+            for event in block:
+                if isinstance(event, TrapGrad) and event.channel == axis:
+                    event.amplitude = event.amplitude * modifier
+                elif isinstance(event, ExtTrapGrad) and event.channel == axis:
+                    event.waveform = event.waveform * modifier
+                elif isinstance(event, ArbitraryGrad) and event.channel == axis:
+                    event.waveform = event.waveform * modifier
+                    event.first = event.first * modifier
+                    event.last = event.last * modifier
 
     def remove_duplicates(self, in_place=False):
         warn(
@@ -50,6 +97,12 @@ class Sequence:
             return self
         else:
             return deepcopy(self)
+
+    def set_block(self, block_index: int, *args: Event):
+        if block_index >= len(self.blocks):
+            self.blocks.append([copy(arg) for arg in args])
+        else:
+            self.blocks[block_index] = [copy(arg) for arg in args]
 
     def set_definition(self, key, value):
         self.definitions[key] = value
@@ -80,6 +133,17 @@ class Sequence:
     def check_timing(self, *args, **kwargs) -> tuple[bool, list[SimpleNamespace]]:
         return self.to_pypulseq().check_timing(*args, **kwargs)
 
+    def evaluate_labels(self, *args, **kwargs) -> dict:
+        return self.to_pypulseq().evaluate_labels(*args, **kwargs)
+
+    def get_gradients(self, *args, **kwargs):
+        raise NotImplementedError("No scipy support")
+
+    def get_raw_block_content_IDs(self, *args, **kwargs):
+        raise NotImplementedError(
+            "Pulseq-zero has different internals: cannot return IDs"
+        )
+
     def install(self, *args, **kwargs):
         return self.to_pypulseq().install(*args, **kwargs)
 
@@ -92,6 +156,24 @@ class Sequence:
     def read(self, *args, **kwargs):
         raise NotImplementedError("Cannot read .seq files in pulseq-zero")
 
+    def register_adc_event(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
+    def register_grad_event(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
+    def register_label_event(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
+    def register_rf_event(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
+    def register_soft_delay_event(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
+    def rf_from_lib_data(self, *args, **kwargs):
+        raise NotImplementedError("Pulseq-zero does not use internal libraries")
+
     def rf_times(
         self, *args, **kwargs
     ) -> tuple[list[float], np.ndarray, list[float], np.ndarray, np.ndarray]:
@@ -99,6 +181,14 @@ class Sequence:
 
     def test_report(self, *args, **kwargs) -> str:
         return self.to_pypulseq().test_report(*args, **kwargs)
+
+    def waveforms(self, *args, **kwargs) -> tuple[np.ndarray]:
+        return self.to_pypulseq().waveforms(*args, **kwargs)
+
+    def waveforms_and_times(
+        self, *args, **kwargs
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        return self.to_pypulseq().waveforms_and_times(*args, **kwargs)
 
     def write(self, *args, **kwargs) -> str | None:
         return self.to_pypulseq().write(*args, **kwargs)
