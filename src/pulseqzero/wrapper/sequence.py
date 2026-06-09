@@ -4,7 +4,6 @@ from copy import copy, deepcopy
 import MRzeroCore
 import pypulseq
 import numpy as np
-from pypulseq.utils.seq_plot import SeqPlot
 
 from typing import Optional
 from types import SimpleNamespace
@@ -150,7 +149,7 @@ class Sequence:
     def paper_plot(self, *args, **kwargs):
         return self.to_pypulseq().paper_plot(*args, **kwargs)
 
-    def plot(self, *args, **kwargs) -> SeqPlot:
+    def plot(self, *args, **kwargs):
         return self.to_pypulseq().plot(*args, **kwargs)
 
     def read(self, *args, **kwargs):
@@ -212,9 +211,12 @@ class Sequence:
             "this inside a hot loop.",
             stacklevel=2,
         )
-        pp_seq = pypulseq.Sequence(
-            system=self.system, use_block_cache=self._pp_use_block_cache
-        )
+        if self.version_minor >= 5:
+            pp_seq = pypulseq.Sequence(
+                system=self.system, use_block_cache=self._pp_use_block_cache
+            )
+        else:
+            pp_seq = pypulseq.Sequence(system=self.system)
         for block in self.blocks:
             pp_events = [ev.to_pulseq(self.system) for ev in block]
             pp_seq.add_block(*pp_events)

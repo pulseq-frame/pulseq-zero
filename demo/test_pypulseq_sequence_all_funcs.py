@@ -20,8 +20,28 @@ This script verifies that contract end-to-end:
 """
 
 import numpy as np
-import pypulseq
 import pulseqzero
+import pypulseq
+import types
+
+
+def _normalize_module_attrs(pp):
+    """pypulseq 1.4 exposes some functions as submodule objects rather than callables
+    at the package top level (e.g. ``pypulseq.make_arbitrary_grad`` is the module
+    ``pypulseq/make_arbitrary_grad.py``, not the function inside it). Promote every
+    ``module.attr_name`` that is callable into the module namespace so the rest of
+    the test can use a single code path for both 1.4 and 1.5."""
+    for name in list(dir(pp)):
+        if name.startswith("_"):
+            continue
+        attr = getattr(pp, name, None)
+        if isinstance(attr, types.ModuleType):
+            fn = getattr(attr, name, None)
+            if callable(fn):
+                try:
+                    setattr(pp, name, fn)
+                except (AttributeError, TypeError):
+                    pass
 
 
 def try_call(fn, *args, **kwargs):
@@ -139,7 +159,11 @@ def build_broad_sequence(pp, out_seq_path=None, do_plot=False, do_write=False):
         channel="y", flat_area=8.0, flat_time=2e-3, rise_time=rise, system=system,
     )
     gz_amp = pp.make_trapezoid(
-        channel="z", amplitude=6.0, duration=1.5e-3, rise_time=rise, system=system,
+        # Use flat_time instead of duration to avoid a pypulseq 1.4 bug:
+        # make_trapezoid(amplitude, duration, rise_time) leaves amplitude2 unbound.
+        # amplitude + flat_time works in both 1.4 and 1.5.
+        channel="z", amplitude=6.0, flat_time=1.5e-3 - 2 * rise, rise_time=rise,
+        system=system,
     )
 
     # Extended trapezoid and arbitrary gradient.
@@ -447,12 +471,38 @@ def _export_probes():
 def probe_module(pp, label, out_seq_path):
     """Build a broad seq with `pp`, then probe every API entry point."""
     print(f"\n=== probing {label} ===")
-    ctx = build_broad_sequence(
-        pp, out_seq_path=out_seq_path, do_plot=False, do_write=False
-    )
-    ctx["out_seq_path"] = out_seq_path
+    _normalize_module_attrs(pp)
+    try:
+        ctx = build_broad_sequence(
+            pp, out_seq_path=out_seq_path, do_plot=False, do_write=False
+        )
+        ctx["out_seq_path"] = out_seq_path
+        build_err = None
+    except Exception as exc:
+        build_err = f"{type(exc).__name__}: {exc}"
+        print(f"  build_broad_sequence FAILED: {build_err}")
+        ctx = None
 
     results = {}
+
+    if ctx is None:
+        for name, expected, _fn in _native_probes() + _not_implemented_probes():
+            results[name] = {
+                "expected": expected,
+                "status": "error",
+                "summary": "None",
+                "error": f"build failed: {build_err}",
+            }
+        for name, _fn in _export_probes():
+            results[name] = {
+                "expected": "ok",
+                "status": "error",
+                "summary": "None",
+                "error": f"build failed: {build_err}",
+            }
+        print(f"  skipped all probes (build failed)")
+        return results, ctx
+
     for name, expected, fn in _native_probes() + _not_implemented_probes():
         status, val, err = try_call(fn, pp, ctx)
         results[name] = {

@@ -13,6 +13,13 @@ gradient descent optimization with a seq script in the loop becomes possible.
 import importlib.metadata
 __version__ = importlib.metadata.version("pypulseq")
 
+# some package version combinations rely on these types which were removed
+import numpy
+numpy.complex = numpy.complex128
+numpy.float = numpy.float64
+numpy.int = numpy.int_
+numpy.bool = numpy.bool_
+
 __all__ = [
     "Opts",
     "Sequence",
@@ -60,6 +67,12 @@ __all__ = [
     "traj_to_grad",
 ]
 
+# Re-exports that only exist in newer pulseq versions
+try:
+    from pypulseq import calc_adc_segments
+except ImportError:
+    pass
+
 # Re-export the shim-generation function if Martin's pTx pulseq is installed
 try:
     from pypulseq import set_tx_mode as set_tx_mode  # ty: ignore[unresolved-import]
@@ -70,8 +83,9 @@ else:
     __all__.append("set_tx_mode")
 
 # does not need to be differentiable, use directly from pypulseq
-from pypulseq import Opts, eps, calc_adc_segments, get_supported_labels
+from pypulseq import Opts, eps, get_supported_labels
 from pypulseq.supported_labels_rf_use import get_supported_rf_uses
+Opts.default = Opts()
 
 # differentiable math helper functions
 from .math import ceil, floor, round, round_half_up

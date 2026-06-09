@@ -18,11 +18,18 @@ from types import SimpleNamespace
 from dataclasses import dataclass
 from typing import Optional
 from collections.abc import Callable
+import inspect as _inspect
 import numpy as np
 import torch
 import pypulseq as pp
 from pypulseq import Opts
+from pypulseq.make_arbitrary_grad import make_arbitrary_grad as _pp_make_arbitrary_grad
 from .wrapper import _n
+
+# pypulseq 1.5+ added first/last/oversampling to make_arbitrary_grad
+_PP_ARB_GRAD_HAS_EXTRAS = "first" in _inspect.signature(_pp_make_arbitrary_grad).parameters
+# pypulseq 1.5+ added freq_ppm/phase_ppm to make_adc
+_PP_ADC_HAS_PPM = "freq_ppm" in _inspect.signature(pp.make_adc).parameters
 
 
 # A field that may carry a live torch tensor (differentiable) or a plain number.
@@ -147,14 +154,13 @@ class ArbitraryGrad:
             return len(self.waveform) * self._grad_raster
 
     def to_pulseq(self, system: Opts) -> SimpleNamespace:
-        return pp.make_arbitrary_grad(
+        return _pp_make_arbitrary_grad(
             channel=self.channel,
             waveform=_n(self.waveform),
-            first=_n(self.first),
-            last=_n(self.last),
             delay=_n(self.delay),
             system=system,
-            oversampling=self.oversampling,
+            **({"first": _n(self.first), "last": _n(self.last),
+                "oversampling": self.oversampling} if _PP_ARB_GRAD_HAS_EXTRAS else {}),
         )
 
 
@@ -233,8 +239,7 @@ class Adc:
             freq_offset=_n(self.freq_offset),
             phase_offset=_n(self.phase_offset),
             system=system,
-            freq_ppm=_n(self.freq_ppm),
-            phase_ppm=_n(self.phase_ppm),
+            **({"freq_ppm": _n(self.freq_ppm), "phase_ppm": _n(self.phase_ppm)} if _PP_ADC_HAS_PPM else {}),
         )
 
 

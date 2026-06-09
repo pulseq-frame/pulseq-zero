@@ -15,6 +15,11 @@ classifiers = [
   "Operating System :: OS Independent",
   "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
 ]
+dependencies = [
+    "mrzerocore>=0.4.7",
+    "numpy>=2.4.4",
+    "pypulseq>=1.4",
+]
 
 [project.urls]
 Repository = "https://github.com/pulseq-frame/pulseq-zero"

@@ -8,7 +8,7 @@ dependencies = [
     "matplotlib>=3.10.8",
     "mrzerocore>=0.4.7",
     "pulseqzero",
-    "pypulseq==1.5.0.post1",
+    "pypulseq",
     "torch>=2.11.0",
 ]
 
