@@ -20,7 +20,7 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install pypulseq MRzeroCore
-          pip install --editable --no-cache-dir .
+          pip install --editable .
 
       - name: Run adapter completeness check
         run: python demo/test_pypulseq_sequence_all_funcs.py
