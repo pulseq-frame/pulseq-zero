@@ -24,9 +24,10 @@ pip install pulseqzero
 ```
 
 > [!NOTE]
-> Pulseq-zero does not define or require any dependencies.
-> That being said, it models the API of PyPulseq 1.4.2 and is only tested with that version of PyPulseq;
-> Using it for scripts that are written for other versions of PyPulseq might lead to unexpected results or errors if function names, arguments or behaviour changed.
+> Pulseq-zero does not declare any runtime dependencies, but it expects `pypulseq`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` to already be in the environment.
+> Pulseq-zero 1.0 is compatible with **PyPulseq 1.4.x and 1.5.x**. Version-specific kwargs (`freq_ppm`, `no_signal_scaling`, `use_block_cache`, etc.) are detected at import time via `inspect.signature`, so the same pulseq-zero installation adapts automatically to whichever PyPulseq version is in the environment.
+>
+> **Migration from 0.x:** the mode-switching facade has been removed. Replace `import pulseqzero; pp = pulseqzero.pp_impl` with `import pulseqzero as pp`, and drop any `with pulseqzero.mr0_mode():` wrappers — `seq.to_mr0()` and `seq.write()` both work unconditionally now.
 
 Pulseq-zero was displayed at [ESMRMB 2024](https://www.esmrmb2024.org/)!
 You can view the abstract here: [abstract/abstract.md](abstract/abstract.md).
@@ -42,124 +43,114 @@ It relies on the following amazing projects:
 
 ## 2. Usage
 
-Example scripts are provided in the [tests](tests) folder.
-They are modified versions of the PyPulseq 1.4.2 examples found [here](https://github.com/imr-framework/pypulseq/tree/v1.4.2/pypulseq/seq_examples/scripts).
-The changes that are typically necessary to convert from a pypulseq sequence script to Pulseq-zero are as follows:
+Pulseq-zero is a drop-in replacement for PyPulseq: any existing PyPulseq script runs under pulseq-zero by swapping the import — or, if you don't want to touch the script at all, by installing a two-line `sys.modules` hijack in the driver (see [§2 · Reuse an unmodified PyPulseq script](#reuse-an-unmodified-pypulseq-script)). The same script then writes `.seq` files *and* is consumed differentiably by MR-zero — no context managers, no mode flags.
 
-### Import pulseq
-
-Change the python imports to access all functions via the Pulseq-zero facade:
-A wrapper that can switch between the pulseq - MR-zero interface and the real pypulseq.
-
-Before:
 ```python
-import pypulseq as pp
+import pulseqzero as pp
 
-# Build a sequence...
+# Build the sequence exactly like a PyPulseq script.
 seq = pp.Sequence()
 seq.add_block(pp.make_delay(10e-3))
 ```
 
-After:
-```python
-import pulseqzero
-pp = pulseqzero.pp_impl
-  
-# Use exactly as before...
-seq = pp.Sequence()
-seq.add_block(pp.make_delay(10e-3))
-```
+### Define the sequence as a function
 
-### Define the sequence
-
-Wrap the sequence code in a function.
-This is not a necessity but a best practice for better code organization and done in newer pypulseq examples as well.
-Namely, it allows to:
-
- - switch executing the sequence script with pypulseq and write a .seq file and simulation with MR-zero
- - define sequence parameter as function arguments for re-creating the sequence with different settings
- - easily use the sequence definition in an optimization loop.
-
-The result is something like the following example:
+Wrap the sequence code in a function so the same definition can drive both `.seq` export and MR-zero simulation / optimization:
 
 ```python
 def my_gre_seq(TR, TE):
-  seq = pp.Sequence()
-
-  # ... create your sequence ...
-  seq.add_block(pp.make_delay(TR - 3e-3)) # use the parameters in any way
-  # ... more sequence creation ...
-
-  return seq
+    seq = pp.Sequence()
+    # ... create your sequence ...
+    seq.add_block(pp.make_delay(TR - 3e-3))
+    # ... more sequence creation ...
+    return seq
 ```
+
+### Reuse an unmodified PyPulseq script
+
+You don't have to swap the import at all. If a sequence script still reads `import pypulseq as pp`, a two-line hijack in the driver redirects every `pypulseq` attribute lookup to pulseq-zero:
+
+```python
+import sys
+import pulseqzero
+sys.modules["pypulseq"] = pulseqzero
+
+from my_existing_pypulseq_script import main  # its `import pypulseq as pp` now resolves to pulseqzero
+seq = main()
+seq.to_mr0()   # differentiable — no edits to the sequence script
+```
+
+The [demo/](demo/) workspace uses exactly this pattern: [demo/write_tse.py](demo/write_tse.py) is a near-verbatim copy of the PyPulseq 1.5 upstream TSE example and still imports `pypulseq`; [demo/main.py](demo/main.py) installs the hijack before importing it and gets a differentiable sequence for free.
+
+**Caveats.** The hijack must run before the downstream script is first imported. `from pypulseq.submod import X` (submodule access, e.g. `pypulseq.convert`) will fail unless pulseq-zero mirrors `submod` — top-level `import pypulseq` and `from pypulseq import foo` both work. Calls to entry points pulseq-zero deliberately doesn't wrap (adiabatic pulses, sigpy, SLR, etc.) still raise `NotImplementedError` with a named workaround (see §4).
 
 ### Application
 
-The sequence definition can now be used in many ways!
-
-- Using with pulseq for plotting and exporting:
+- **Export a `.seq` file and plot** (goes through PyPulseq under the hood; a one-off translation warning is emitted so you notice if it fires inside a hot loop):
   ```python
   seq = my_gre_seq(14e-3, 5e-3)
   seq.plot()
   seq.write("tse.seq")
   ```
-- Using with MR-zero for simulation:
+- **Simulate with MR-zero**:
   ```python
   import MRzeroCore as mr0
-  # Data loading and other imports
-  
-  with pulseqzero.mr0_mode():
-    seq = my_gre_seq(14e-3, 5e-3).to_mr0()
 
+  seq = my_gre_seq(14e-3, 5e-3).to_mr0()
   graph = mr0.compute_graph(seq, sim_data)
   signal = mr0.execute_graph(graph, seq, sim_data)
   reco = mr0.reco_adjoint(signal, seq.get_kspace())
   ```
-- Using pulseq-zero helpers to simplify common tasks even more!
+- **Optimize sequence parameters with PyTorch**:
   ```python
-  # Define some target_image which we try to achieve
-  
-  TR = torch.tensor(14e-3)
-  TE = torch.tensor(5e-3)
-  for iter in range(100):
-    pulseqzero.optimize(my_gre_seq, target_image, TR, TE)
+  TR = torch.tensor(14e-3, requires_grad=True)
+  TE = torch.tensor(5e-3, requires_grad=True)
+  optimizer = torch.optim.Adam([TR, TE], lr=0.001)
 
-  # Back to using plain old pypulseq for export again!
-  # The pulseq-zero magic is disabled outside of all special calls but theparameters remain optimized
-  seq = my_gre_seq(TR, TE)
-  seq.write("tse_optim.seq")
+  for _ in range(100):
+      optimizer.zero_grad()
+      seq = my_gre_seq(TR, TE).to_mr0()
+      loss = my_loss(seq)
+      loss.backward()
+      optimizer.step()
+
+  # After optimization: export using the same script.
+  my_gre_seq(TR, TE).write("tse_optim.seq")
   ```
 
 
 ## 3. Development
 
-If you want to contribute to Pulseq-zero or make local changes to it, the easiest way is to install it locally in editable mode:
+The recommended dev toolchain is [uv](https://docs.astral.sh/uv/). Install it once ([install instructions](https://docs.astral.sh/uv/getting-started/installation/)), then run the demos straight from the repo root:
 
-1. Create a virtual environment that can use globally installed packages
-  ```bash
-  python -m venv --system-site-packages .venv
-  ```
-2. Activate this environment
-  ```bash
-  # Windows CMD
-  .venv\Scripts\activate
-  # Linux bash
-  $ source .venv/bin/activate
-  ```
-3. Install pulseq-zero in the virtual enviornment in editable mode
-  ```bash
-  pip install --editable .
-  ```
+```bash
+uv run demo/main.py        # end-to-end optimization demo (needs demo/brain.npz)
+uv run demo/write_tse.py   # build a TSE sequence, plot it, and emit tse_pypulseq.seq
+```
+
+`uv run` resolves the `demo` workspace member defined in [pyproject.toml](pyproject.toml), installs the pinned demo deps (PyPulseq 1.5.0.post1, torch, MRzeroCore, matplotlib) into `.venv/`, and picks up the editable `pulseqzero` checkout — no manual `pip install -e .` step.
+
+Good to know:
+
+- **No test suite, no linter, no CI for correctness.** The two demo scripts *are* the acceptance gate: `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR, and `demo/write_tse.py` must produce a `.seq` file that round-trips byte-for-byte against the pypulseq reference (the unified adapter guarantees this; see `to_pypulseq()` in [adapter/sequence.py](src/pulseqzero/adapter/sequence.py)).
+- **PyTorch CUDA pin.** [demo/pyproject.toml](demo/pyproject.toml) references the CUDA 12.6 wheel index (`download.pytorch.org/whl/cu126`). Swap that index URL (or remove it) if you're on CPU-only or a different CUDA version.
+- **Headless plotting.** `seq.plot()` forwards to pypulseq's plot and expects an interactive matplotlib backend. Export `MPLBACKEND=Agg` to run headless (Agg will render but not show — useful for CI-style runs).
+- **Falling back to plain pip.** If you'd rather skip uv, `pip install --editable .` from the root still works — but the root declares no runtime deps, so you need `pypulseq==1.5.0.post1`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` already in the env (a venv created with `--system-site-packages` and an existing MR-zero install is the path of least resistance).
+- **Warnings are single-fire.** `seq.to_pypulseq()` (and `seq.write()` / `seq.plot()` / other forwarders) emit a `UserWarning` the *first* time they run from a given call site, then stay quiet — Python's default warning filter dedupes by `(message, module, lineno)`. If the warning fires inside an optimization loop, move the call out of the loop.
 
 
 ## 4. API
 
-### Additional API
+Pulseq-zero provides the whole pypulseq 1.5 API, with some notable exceptions:
+Some functions are not differentiable (like plotting) and just re-exports.
+A few methods are not provided (like sigpy pulse optimization) as they are not
+compatible with the approach taken by pulseq- zero.
 
-Pulseq requires many events to align with the block-, gradient- or ADC raster.
-For this, rounding is necessary, which is not differentiable.
-As a workaround, Pulseq-zero includes differentiable rounding functions, which are wrappers around the corresponding PyTorch functions, but which behave like the identity function for backpropagation.
-This means they are invisible to the calculation of gradients, which is okay as long as the rounding is small compared to the changes to the optimized parameters, which is typically the case with small raster times.
+The full API can be found in [TOC.md](TOC.md).
+
+### Differentiable rounding
+
+PyPulseq aligns many events to the block / gradient / ADC raster, which requires rounding — and rounding kills gradients. Pulseq-zero ships `pp.round` / `pp.ceil` / `pp.floor` that match PyTorch semantics but act like the identity function on the backward pass:
 
 ```python
 my_param = torch.tensor(1.5, requires_grad=True)
@@ -169,165 +160,42 @@ some_calc.backward()
 assert some_calc == 1
 assert my_param.grad == torch.cos(my_param)
 ```
-Use pulseq-zeros rounding functions instead of e.g. those of numpy or torch if it is applied to timings (or other sequence properties) that are part of an optimization.
 
-In the `mr0_mode` context, all PyPulseq functions are swapped for Pulseq-zero implementations that track all calls so that the sequence can be converted to MR-zero later:
-```python
-with pulseqzero.mr0_mode():
-  seq = build_my_seq()
-```
+Use these whenever you round a timing (or any sequence quantity) that flows from an optimization parameter. For plain numeric rounding outside optimization, `np.round` / `torch.round` are fine.
 
-If you use some functions that are only available in PyPulseq but not Pulseq-zero (PNS computations or similar), you can check if `mr0_mode` is activated:
-```python
-if pulseqzero.is_mr0_mode():
-  pass
-else:
-  seq.calculate_pns()
-```
+### `seq.to_mr0()` and `seq.write()`
 
-Finally, the sequence object returned in `mr0_mode` has one method that is not available otherwise and forms the central point of Pulseq-zero:
-```python
-with pulseqzero.mr0_mode():
-  seq = build_my_seq()
-  # This function here
-  mr0_seq = seq.to_mr0()
-  # Now do some simulations with mr0_seq!
-```
+Every `pulseqzero.Sequence` supports both paths unconditionally:
 
+- `mr0_seq = seq.to_mr0()` — build an `MRzeroCore.Sequence` for PDG simulation / optimization.
+- `seq.write("out.seq")` — translate the internal event graph through PyPulseq and emit a `.seq` file. A one-time `warnings.warn` is raised per call so you notice if it fires inside a hot loop (move it out of the optimizer).
 
-### PyPulseq API
+If you need a native PyPulseq `Sequence` for a one-off exotic call, `seq.to_pypulseq()` is the explicit escape hatch.
 
-The following is a list of all functions and methods exposed in PyPulseq 1.4.2 when importing it directly.
-Pulseq-zero tries to provide all of those - it is currently not planned to cover other functions that are available internally in PyPulseq but not exposed this way.
-If you need one of them, file an issue or submit a pull request.
+### System (`Opts`) is configured once, on the `Sequence`
 
-Not all functions on this list will be supported: Pulseq-zero does not aim to translate functions that are not differentiable or would require to emulate large portions of inner workings of PyPulseq if they are rarely used, other functions will not do any actual work (like test reports) as they are not useful when simulating / optimizing sequences.
-The list tracks the progress on deciding which function to support and implementing them if desired.
-Functions that behave differently to PyPulseq are listed in the following sections.
+Pulseq-zero applies **one** system to the whole sequence: the `system=` you pass to `pp.Sequence(system=...)` (or `Opts.default` when you pass none). That system is authoritative — it is the one used for every event at `to_mr0()`, `write()`, and `to_pypulseq()`.
 
+A `system=` handed to an individual `make_*` call is honored only for that call's construction-time math (e.g. deriving a slew-limited `rise_time`); it is **not** stored on the event and **not** carried to conversion/export. Consequently, pulseq-zero does **not** support mutating the system between calls, nor using a different/derated `Opts` for individual events: at export the `Sequence`'s system wins, so an event built under different limits can silently disagree with it (or fail PyPulseq's re-validation). If you genuinely need per-event limits, do that one-off through `seq.to_pypulseq()`.
 
-- [x] `calc_SAR`
-- [ ] `Sequence`
-  - [x] `__init__`
-  - [x] `__str__`
-  - [ ] `adc_times`
-  - [x] `add_block`
-  - [ ] `calculate_gradient_spectrum`
-  - [ ] `calculate_kspace`
-  - [ ] `calculate_kspacePP`
-  - [x] `calculate_pns`
-  - [x] `check_timing`
-  - [x] `duration`
-  - [x] `evaluate_labels`
-  - [ ] `flip_grad_axis`
-  - [ ] `get_block`
-  - [x] `get_definition`
-  - [ ] `get_extension_type_ID`
-  - [ ] `get_extension_type_string`
-  - [ ] `get_gradients`
-  - [ ] `mod_grad_axis`
-  - [x] `plot`
-  - [x] `read`
-  - [x] `register_adc_event`
-  - [x] `register_grad_event`
-  - [x] `register_label_event`
-  - [x] `register_rf_event`
-  - [x] `remove_duplicates`
-  - [ ] `rf_from_lib_data`
-  - [ ] `rf_times`
-  - [ ] `set_block`
-  - [x] `set_definition`
-  - [ ] `set_extension_string_ID`
-  - [x] `test_report`
-  - [ ] `waveforms`
-  - [ ] `waveforms_and_times`
-  - [ ] `waveforms_export`
-  - [x] `write`
-- [x] `add_gradients`
-- [ ] `align`
-- [x] `calc_duration`
-- [ ] `calc_ramp`
-- [x] `calc_rf_bandwidth`
-- [x] `calc_rf_center`
-- [x] `make_adc`
-- [x] `make_adiabatic_pulse`
-- [x] `make_arbitrary_grad`
-- [x] `make_arbitrary_rf`
-- [x] `make_block_pulse`
-- [x] `make_delay`
-- [x] `make_digital_output_pulse`
-- [x] `make_extended_trapezoid`
-- [x] `make_extended_trapezoid_area`
-- [x] `make_gauss_pulse`
-- [x] `make_label`
-- [x] `make_sinc_pulse`
-- [x] `make_trapezoid`
-- [x] sigpy
-  - [x] `SigpyPulseOpts`
-  - [x] `sigpy_n_seq`
-  - [x] `make_slr`
-  - [x] `make_sms`
-- [x] `make_trigger`
-- [x] `Opts`
-  - [x] `__init__`
-  - [x] `set_as_default`
-  - [x] `reset_default`
-  - [x] `__str__`
-- [x] `points_to_waveform`
-- [ ] `rotate`
-- [x] `scale_grad`
-- [x] `split_gradient`
-- [ ] `split_gradient_at`
-- [x] `get_supported_labels`
-- [ ] `traj_to_grad`
+This matches the universal pulseq idiom — create one `Opts` at the top, pass it to the `Sequence` and (by convention) to each `make_*` call; since it is the same object, everything stays consistent. Every script in the PyPulseq example suite checked (`write_gre`, `write_epi`, `write_tse`, `write_haste`, `write_radial_gre`, `write_ute`, `write_epi_se_rs`) creates exactly one `Opts` and reuses it throughout.
 
-### Disabled in mr0 mode
+### Differentiability
 
-These will in mr0 mode either return the specified value or don't exist so using them raises an error.
-The reason for disabling is either that a differentiable re-implementation is out of scope of pulseq-zero (e.g.: pulse optimization) or not sensible (like sequence loding).
+Gradients flow through the following quantities end-to-end (set `requires_grad=True` and they thread through to `seq.to_mr0()`):
 
-| function | return value |
-| -------- | ------------ |
-| `calc_SAR` | `(True, [])` |
-| `Sequence.calculate_pns` | **error** |
-| `Sequence.check_timing` | `None` |
-| `Sequence.evaluate_labels` | **error** |
-| `Sequence.plot` | `None` |
-| `Sequence.read` | **error** |
-| `Sequence.write` | `None` or `""` depending on `create_signature` |
-| `Sequence.register_*_event` | **error** - is only used internally |
-| sigpy | **error** |
-| `make_adiabatic_pulse` | **error** |
-| `make_label` | `None` |
-| `make_extended_trapezoid_area` | **error** |
-| `calc_rf_bandwidth` | returns zeroes as mr0 mode doesn't store pulse shapes |
-| `calc_rf_center` | returns (shape_dur / 2, 0) - mr0 mode ignores (assymetric) pulse shapes |
-| `points_to_waveform` | **error** |
+- RF `flip_angle`, `phase_offset`, `freq_offset`, `delay`
+- ADC `phase_offset`, `freq_offset`, `delay`, `dwell`
+- Gradient `amplitude` (trapezoidal and arbitrary), `rise_time`, `flat_time`, `fall_time`, `delay`
+- Block / repetition / TR / TE durations
 
-### Altered behaviour
+The following are **not** differentiable today (they affect pulse *shape*, which is materialized eagerly via PyPulseq):
 
-Some functions are only partially supported in mr0 mode and / or some aspects are missing in simulation.
-In general, pulseq-zero tries not to include every single attribute that exists in pypulseq to reduce bloat; if scripts rely on them existing (even if they are ignored even in pypulseq) they can be added to the objects created in the `make_` functions even if they don't affect anything.
-Some pypulseq functions round to raster times, which is not done in mr0 mode for differentiability.
-Pypulseq does many more checks on timing or other parameters that are not checked by pulseq-zero.
-These are not listed here, but note that some scripts that don't run otherwise might run in mr0 mode.
-Pulses have no shape, `center_pos` will influence the returned `gzr` but nothing else - *TODO* should be considered when converting timing to mr0
+- Pulse shape parameters: `duration` when used to shape the envelope, `time_bw_product`, `apodization`, `center_pos`, `slice_thickness` (as it feeds shape generation), `dwell` for pulses
+- Gradient *waveform samples* for arbitrary gradients (the scale is differentiable, the samples aren't)
+- `Opts` fields (max_grad, rasters, dead times) — intentionally numeric
 
-| function | remarks |
-| -------- | ------- |
-| `make_trigger`, `make_digital_output_pulse` | returns `Delay`, ignores rest |
-| `make_adc` | has no `dead_time` property |
-| `make_arbitrary_rf`, `make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse` | returned object has no `signal` or `t` attribute (waveform is not computed) but has an added `flip_angle` |
-| `make_trapezoid` | `area`, `flat_area` are calculated properties, no attributes `first`, `last` or `use`, `signal` or `t` |
-| `make_sinc_pulse` | has no `dead_time`, `ringdown_time` or `use` properties |
-| `make_gauss_pulse` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
-| `make_arbitrary_rf` | has no `dead_time`, `ringdown_time`, `use`, `signal` or `t` |
-| `calc_duration` | adc doesn't include dead_time (pypulseq bug), only includes trigger delay (see `make_trigger`) |
-| `make_arbitrary_grad` | no `first` or `last` |
-| `make_extended_trapezoid` | skipping some checks and ignoring `convert_to_arbitrary`; `area` is a computed property, no `first` or `last` |
-| `make_extended_trapezoid_area` | Implementation copied from pypulseq, not yet differentiable (can't optimize parameters of gradients created with this function) |
-| `add_gradients` | Implementation copied from pypulseq, not yet differentiable (can't optimize parameters of gradients created with this function) |
-| `Sequence` | way less internal bookkeeping, most variables are missing, reports etc. are not calculated |
+Pulse-shape autograd can be added back per-factory via an opt-in flag if it ever becomes load-bearing.
 
 
 ## 5. References

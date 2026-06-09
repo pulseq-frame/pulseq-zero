@@ -4,17 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pulseqzero"
-version = "0.2.2"
+version = "1.0.0"
 description = "Use PyPulseq for MRI sequence definitions in MR-zero"
 readme = "README.md"
 authors = [
-  { name="Jonathan Endres", email="jonathan.endres@uk-erlangen.de" },
+  { name = "Jonathan Endres", email = "jonathan.endres@uk-erlangen.de" },
 ]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+]
+dependencies = [
+    "mrzerocore>=0.4.7",
+    "numpy>=2.4.4",
+    "pypulseq>=1.4",
 ]
 
 [project.urls]
 Repository = "https://github.com/pulseq-frame/pulseq-zero"
+
+[tool.uv.workspace]
+members = ["demo"]

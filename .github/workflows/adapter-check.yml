@@ -1,0 +1,27 @@
+name: Adapter completeness check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install pypulseq MRzeroCore
+          pip install --editable --no-cache-dir .
+
+      - name: Run adapter completeness check
+        run: python demo/test_pypulseq_sequence_all_funcs.py
+        working-directory: ${{ github.workspace }}
