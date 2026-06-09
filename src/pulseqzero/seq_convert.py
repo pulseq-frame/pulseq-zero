@@ -80,18 +80,36 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         rep_out = seq.new_rep(event_count)
         rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
         rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
-        rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset)  # TODO: only compatible with felix MR0 version
-        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration)        # TODO: felix expects pulse_freq but this might be better. Or calculate freq from this and angle, I don't care
-        rep_out.pulse.grad = torch.as_tensor([rep_in[0].grad_x, rep_in[0].grad_y, rep_in[0].grad_z]) # TODO: only compatible with felix MR0 version       
-        rep_out.pulse.off_res = (rep_out.pulse.freq_offset != 0) or (rep_out.pulse.grad is not torch.tensor([0.,0.,0.]))           # TODO: only compatible with felix MR0 version; flag indicates if offres matrix should be used
-        
-        rep_out.pulse.usage = rep_in[0].use
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
-        if rep_out.pulse.angle > 100 * torch.pi / 180:
+
+        rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset, dtype=torch.float32)
+        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration, dtype=torch.float32)
+        rep_out.pulse.grad = torch.stack([
+            torch.as_tensor(rep_in[0].grad_x, dtype=torch.float32),
+            torch.as_tensor(rep_in[0].grad_y, dtype=torch.float32),
+            torch.as_tensor(rep_in[0].grad_z, dtype=torch.float32),
+        ])
+        rep_out.pulse.off_res = bool(
+            (rep_out.pulse.freq_offset != 0).any().item()
+            or (rep_out.pulse.grad != 0).any().item()
+        )
+        # pulse_freq = ω₁ = angle/duration (legacy field, to be removed upstream)
+        rep_out.pulse.pulse_freq = rep_out.pulse.angle / rep_out.pulse.duration
+
+        # pulse.usage: honour the rf.use tag when it's explicit; only fall back
+        # to the flip-angle heuristic when the tag was not set ('undefined'/UNDEF).
+        if rep_in[0].use != mr0.PulseUsage.UNDEF:
+            rep_out.pulse.usage = rep_in[0].use
+        elif rep_out.pulse.angle > 100 * torch.pi / 180:
             rep_out.pulse.usage = mr0.PulseUsage.REFOC
         else:
             rep_out.pulse.usage = mr0.PulseUsage.EXCIT
+
+        # pulse.selective: True when a z-gradient is active during any sub-pulse
+        rep_out.pulse.selective = any(
+            isinstance(ev, TmpPulse) and ev.grad_z != 0 for ev in rep_in
+        )
 
         i = 0
         for ev in rep_in[1:]:
@@ -257,8 +275,12 @@ def parse_adc(delay, adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoil
 
     event_time = torch.diff(time)
     gradm = torch.diff(gradm, dim=0)
+    # Per-sample ADC phase: constant phase_offset plus time-varying freq_offset term.
+    # t_samples are the centre times of each ADC dwell interval.
+    t_samples = adc.delay + (torch.arange(adc.num_samples, dtype=torch.float32) + 0.5) * adc.dwell
+    adc_phase = adc.phase_offset + 2 * torch.pi * adc.freq_offset * t_samples
     return (
-        TmpAdc(event_time[:-1], gradm[:-1, :], adc.phase_offset),
+        TmpAdc(event_time[:-1], gradm[:-1, :], adc_phase),
         TmpSpoiler(event_time[-1], gradm[-1, 0], gradm[-1, 1], gradm[-1, 2])
     )
 
