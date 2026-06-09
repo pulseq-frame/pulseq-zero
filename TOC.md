@@ -12,16 +12,6 @@ Methods are marked with one of the following:
 
 ---
 
-Additional information, to be integrated into the list below:
-- missing functions new in 1.5: `Sequence.apply_soft_delay`
-- how to implement `__version__`?
-- support for new pulseq attributes:
-  `freq_ppm`, `phase_ppma`, `center`, `phase_modulation`, `oversampling`, `Opt.adc_samples_limit/divisor` `use`
-  new function default values
-
----
-
-## dir(pypulseq)
 - [x] Opts                             **re-exported**
 - [x] Sequence                          *sequence.py*
   - [x] adc_times                      **re-export** **non-differentiable**

@@ -10,7 +10,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The 1.0 release unifies pulseq-zero into a single, always-on facade. The
 mode-switching surface (`pp_impl`, `mr0_mode()`, `is_mr0_mode()`) is gone
 — the same script now writes `.seq` files *and* feeds MR-zero, with no
-context manager and no mode flag. Targets PyPulseq 1.5.0.post1.
+context manager and no mode flag. Compatible with **PyPulseq 1.4.x and
+1.5.x**; the correct API surface is detected at import time.
+
+### Added (post-unification fixes)
+
+- **PyPulseq 1.4 compatibility.** Pulseq-zero now runs against both
+  PyPulseq 1.4.x and 1.5.x. All 1.5-only kwargs are guarded by
+  `inspect.signature` probes at module load time:
+  - `freq_ppm` / `phase_ppm` on all four pulse factories and `make_adc`.
+  - `no_signal_scaling` and `center` on `make_arbitrary_rf`.
+  - `first` / `last` / `oversampling` on `make_arbitrary_grad`.
+  - `use_block_cache` on `pypulseq.Sequence.__init__`.
+  - `Opts.default = Opts()` is injected once at import time so code that
+    relies on the class attribute works with both versions.
+  - `demo/test_pypulseq_sequence_all_funcs.py` now runs cleanly under 1.4
+    (one known row mismatch: pypulseq 1.4's `test_report` has an
+    off-by-one index bug, reported upstream).
+
+- **MRzeroCore 0.4.11 pulse fields.** `seq.to_mr0()` now populates all
+  fields introduced in MRzeroCore 0.4.11:
+  - `pulse.freq_offset` — RF carrier offset in Hz.
+  - `pulse.duration` — sub-pulse interval duration in seconds.
+  - `pulse.grad` — gradient amplitude vector `[gx, gy, gz]` in Hz/m
+    during the RF window.
+  - `pulse.off_res` — `True` when `freq_offset ≠ 0` or any gradient
+    component is non-zero during the pulse.
+  - `pulse.pulse_freq` — legacy `ω₁ = angle / duration` field (marked
+    upstream as "to be removed").
+
+### Fixed (post-unification fixes)
+
+- **numpy deprecated type aliases.** `numpy.bool`, `numpy.float`,
+  `numpy.int`, and `numpy.complex` are now mapped to their correct numpy
+  scalar types (`bool_`, `float64`, `int_`, `complex128`), preventing
+  `AttributeError: 'bool' object has no attribute 'view'` with
+  numpy ≥ 1.24.
+
+- **`seq_convert`: `pulse.usage` now respects `rf.use`.** When a pulse
+  factory is called with an explicit `use=` string (`'excitation'`,
+  `'refocusing'`, …), that tag is passed through to `pulse.usage` on the
+  MRzeroCore side. The flip-angle threshold heuristic (`> 100°` →
+  `REFOC`) only fires when `use` is `'undefined'` / `UNDEF`.
+
+- **`seq_convert`: `pulse.selective` set from z-gradient.** `pulse.selective`
+  is now `True` whenever a z-gradient is active during any sub-pulse of
+  the RF event, correctly signalling slice-selective excitation to
+  MR-zero.
+
+- **`seq_convert`: ADC `freq_offset` contributes per-sample phase.** The
+  ADC phase passed to MR-zero is now `φ(t) = phase_offset + 2π ×
+  freq_offset × t_sample` (where `t_sample` is the centre time of each
+  ADC dwell interval), matching the physical per-sample demodulation
+  model. Previously `freq_offset` was silently ignored in simulation.
 
 ### Breaking changes
 

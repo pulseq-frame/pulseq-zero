@@ -25,7 +25,7 @@ pip install pulseqzero
 
 > [!NOTE]
 > Pulseq-zero does not declare any runtime dependencies, but it expects `pypulseq`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` to already be in the environment.
-> Starting with 1.0 it targets **PyPulseq 1.5.0.post1**; earlier 1.4.x scripts may need small adjustments where the pypulseq API changed.
+> Pulseq-zero 1.0 is compatible with **PyPulseq 1.4.x and 1.5.x**. Version-specific kwargs (`freq_ppm`, `no_signal_scaling`, `use_block_cache`, etc.) are detected at import time via `inspect.signature`, so the same pulseq-zero installation adapts automatically to whichever PyPulseq version is in the environment.
 >
 > **Migration from 0.x:** the mode-switching facade has been removed. Replace `import pulseqzero; pp = pulseqzero.pp_impl` with `import pulseqzero as pp`, and drop any `with pulseqzero.mr0_mode():` wrappers — `seq.to_mr0()` and `seq.write()` both work unconditionally now.
 
@@ -141,6 +141,13 @@ Good to know:
 
 ## 4. API
 
+Pulseq-zero provides the whole pypulseq 1.5 API, with some notable exceptions:
+Some functions are not differentiable (like plotting) and just re-exports.
+A few methods are not provided (like sigpy pulse optimization) as they are not
+compatible with the approach taken by pulseq- zero.
+
+The full API can be found in [TOC.md](TOC.md).
+
 ### Differentiable rounding
 
 PyPulseq aligns many events to the block / gradient / ADC raster, which requires rounding — and rounding kills gradients. Pulseq-zero ships `pp.round` / `pp.ceil` / `pp.floor` that match PyTorch semantics but act like the identity function on the backward pass:
@@ -164,35 +171,6 @@ Every `pulseqzero.Sequence` supports both paths unconditionally:
 - `seq.write("out.seq")` — translate the internal event graph through PyPulseq and emit a `.seq` file. A one-time `warnings.warn` is raised per call so you notice if it fires inside a hot loop (move it out of the optimizer).
 
 If you need a native PyPulseq `Sequence` for a one-off exotic call, `seq.to_pypulseq()` is the explicit escape hatch.
-
-### PyPulseq coverage (1.5.0.post1)
-
-Pulseq-zero covers what's needed to run differentiable simulation / optimization and to emit `.seq` files. The table below tracks per-function status.
-
-Legend:
-- ✅ differentiable native implementation in the adapter.
-- ➡️ forwarded to PyPulseq at export / call time (values stay numeric).
-- 🚫 raises `NotImplementedError` with a named workaround.
-
-
-| PyPulseq entry point                   | status | notes |
-| -------------------------------------- | ------ | ----- |
-| `Sequence.__init__`, `add_block`, `set_definition`, `get_definition`, `duration`, `__str__`, `remove_duplicates` | ✅ | adapter-native |
-| `Sequence.to_mr0`                      | ✅ | adapter-native, only on pulseq-zero |
-| `Sequence.write`, `to_pypulseq`        | ➡️ | lazy translation, one warning per call |
-| `Sequence.check_timing`                | ⚠️ | stub returns `(True, [])` — real validation happens on `write()` |
-| `Sequence.plot`, `test_report`, `calculate_pns`, `paper_plot` | ➡️ | forwarded via `to_pypulseq()` |
-| `calc_SAR`, `make_label`               | ⚠️ | no-op |
-| `calc_rf_bandwidth`, `calc_rf_center`  | ⚠️ | numeric approximations; pulse shape detail not tracked |
-| `calc_duration`                        | ✅ | differentiable, torch.maximum-based |
-| `Opts`                                 | ➡️ | direct re-export of `pypulseq.Opts`; configured once on the `Sequence` — per-call `system=` is not retained (see "System is configured once" below) |
-| `make_trapezoid`, `make_extended_trapezoid`, `make_arbitrary_grad`, `add_gradients`, `scale_grad`, `split_gradient`, `split_gradient_at` | ✅ | adapter-native, differentiable |
-| `make_extended_trapezoid_area`         | ⚠️ | copied from PyPulseq; **not yet differentiable** |
-| `make_sinc_pulse`, `make_gauss_pulse`, `make_block_pulse`, `make_arbitrary_rf` | ✅ | delegate shape generation to PyPulseq, keep differentiable `flip_angle` / `phase_offset` / `freq_offset` / `delay` |
-| `make_adc`, `make_delay`, `make_trigger`, `make_digital_output_pulse` | ✅ | adapter-native |
-| `get_supported_labels`                 | ✅ | static list |
-| `make_adiabatic_pulse`, `sigpy_n_seq`, `make_slr`, `make_sms`, `SigpyPulseOpts` | 🚫 | use PyPulseq directly, wrap the signal via `make_arbitrary_rf` |
-| `align`, `calc_ramp`, `rotate`, `points_to_waveform`, `traj_to_grad` | 🚫 | not wired yet; call via `seq.to_pypulseq()` if needed |
 
 ### System (`Opts`) is configured once, on the `Sequence`
 
