@@ -46,7 +46,7 @@ class Label:
 
     def to_pulseq(self, system: Opts):
         typ = "INC" if self.inc else "SET"
-        pp.make_label(self.label, typ, self.value)
+        return pp.make_label(self.label, typ, self.value)
 
 
 @dataclass
