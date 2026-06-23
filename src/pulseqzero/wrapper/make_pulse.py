@@ -10,7 +10,7 @@ import torch
 from .. import get_supported_rf_uses, Opts, FREUDENSPRUNG_PTX
 from ..events import RfPulse, TrapGrad, Scalar, Array
 from .make_grad import make_trapezoid
-from . import _n
+from . import _n, _r
 
 # pypulseq 1.5+ added freq_ppm / phase_ppm to all pulse factories
 _PP_HAS_PPM = "freq_ppm" in _inspect.signature(pp.make_block_pulse).parameters
@@ -67,8 +67,8 @@ def make_block_pulse(
         # wrapped pypulseq call - stored if needed for writing, plotting, ...
         _pp_factory=lambda self, system: pp.make_block_pulse(
             flip_angle=_n(self.flip_angle),
-            delay=_n(self.delay),
-            duration=_n(self.shape_dur),
+            delay=_r(_n(self.delay), system.rf_raster_time),
+            duration=_r(_n(self.shape_dur), system.rf_raster_time),
             bandwidth=None,
             time_bw_product=None,
             freq_offset=_n(self.freq_offset),
@@ -136,9 +136,9 @@ def make_gauss_pulse(
                 apodization=_n(apodization),
                 bandwidth=_n(bandwidth),
                 center_pos=_n(center_pos),
-                delay=_n(self.delay),
-                dwell=_n(dwell),
-                duration=_n(self.shape_dur),
+                delay=_r(_n(self.delay), system.rf_raster_time),
+                dwell=_r(_n(dwell), system.rf_raster_time),
+                duration=_r(_n(self.shape_dur), system.rf_raster_time),
                 freq_offset=_n(self.freq_offset),
                 max_grad=0.0,  # for grads only
                 max_slew=0.0,  # for grads only
@@ -241,9 +241,9 @@ def make_sinc_pulse(
             pp.make_sinc_pulse(
                 flip_angle=_n(self.flip_angle),
                 apodization=_n(apodization),
-                delay=_n(self.delay),
-                duration=_n(self.shape_dur),
-                dwell=_n(dwell),
+                delay=_r(_n(self.delay), system.grad_raster_time),
+                duration=_r(_n(self.shape_dur), system.rf_raster_time),
+                dwell=_r(_n(dwell), system.rf_raster_time),
                 center_pos=_n(center_pos),
                 freq_offset=_n(self.freq_offset),
                 max_grad=0.0,  # for grads only
@@ -364,8 +364,8 @@ def make_arbitrary_rf(
                 signal=_n(signal),
                 flip_angle=_n(self.flip_angle),
                 bandwidth=0.0,  # for grads only
-                delay=_n(self.delay),
-                dwell=_n(dwell),
+                delay=_r(_n(self.delay), system.rf_raster_time),
+                dwell=_r(_n(dwell), system.rf_raster_time),
                 freq_offset=_n(self.freq_offset),
                 **({"no_signal_scaling": True} if _PP_ARB_HAS_NO_SIGNAL_SCALING else {}),
                 max_grad=0.0,  # for grads only
