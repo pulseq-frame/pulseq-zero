@@ -9,7 +9,7 @@ from pypulseq import Opts
 
 
 def calc_duration(*args: Event) -> Scalar:
-    return max(ev.duration for ev in args if ev is not None)
+    return max(getattr(ev, 'duration', 0) for ev in args if ev is not None)
 
 
 def calc_rf_bandwidth(
