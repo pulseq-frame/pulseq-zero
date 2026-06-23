@@ -11,7 +11,7 @@ def convert_tensors_to_float32(obj):
                 setattr(obj, field_name, value.to(dtype=torch.float32))
     return obj
 
-def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
+def convert(pp0, samples_offres: int, samples_slicesel: int, samples_onres: int) -> mr0.Sequence:
     seq = []
 
     for block in pp0.blocks:
@@ -52,7 +52,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
             elif grad_x or grad_y or grad_z:
                 samples = samples_slicesel
             else:
-                samples = 1
+                samples = samples_onres
 
             seq += parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples)
         elif adc:
@@ -191,9 +191,11 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
     step = rf.shape_dur / samples
     # Adjusted to cover whole block
-    t_rf = [0] + [rf.delay + step * i for i in range(1, samples)] + [duration]
+    t_rf = [0] + [rf.delay + step * i for i in range(1, samples + 1)] + [duration]
+    t_rf_tmp =  [0] + [r - rf.delay for r in t_rf[1:]]
+    
     # grads are integrated from one pulse center to the next
-    t_grad = [0] + [(t1 + t2) / 2 for t1, t2 in zip(t_rf[0:], t_rf[1:])] + [duration]
+    t_grad = [0] + [rf.delay + (t1 + t2) / 2 for t1, t2 in zip(t_rf_tmp[0:-2], t_rf_tmp[1:-1])] + [duration]
     
     # Alternate spoiler from one pulse center to next with pulse itself
     events: list[TmpPulse | TmpSpoiler] = []
