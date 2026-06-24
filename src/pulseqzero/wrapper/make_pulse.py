@@ -241,7 +241,7 @@ def make_sinc_pulse(
             pp.make_sinc_pulse(
                 flip_angle=_n(self.flip_angle),
                 apodization=_n(apodization),
-                delay=_r(_n(self.delay), system.grad_raster_time),
+                delay=_r(_n(self.delay), system.rf_raster_time),
                 duration=_r(_n(self.shape_dur), system.rf_raster_time),
                 dwell=_r(_n(dwell), system.rf_raster_time),
                 center_pos=_n(center_pos),
