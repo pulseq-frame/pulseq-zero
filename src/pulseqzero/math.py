@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import math
 
 
 class Ceil(torch.autograd.Function):
@@ -47,6 +48,8 @@ class Round(torch.autograd.Function):
 def ceil(x: torch.Tensor) -> torch.Tensor:
     """Differentiable version of torch.ceil.
     For gradient calculation, this mimicks the identity function."""
+    if isinstance(x, float):
+        return math.ceil(x)
     try:
         return Ceil.apply(x)
     except TypeError:
