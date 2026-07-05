@@ -43,7 +43,7 @@ def make_arbitrary_rf(
         generate_shape,
         use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -65,11 +65,14 @@ def make_arbitrary_rf(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz)
+        ret_val = (ret_val, gz)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(calc_duration(rf) + rf.ringdown_time)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -153,7 +156,14 @@ def make_gauss_pulse(
     delay = max(delay, system.rf_dead_time)
 
     def generate_shape():
-        raise NotImplementedError
+        import numpy as np
+        t = (np.arange(100) + 0.5) * duration / 100
+        tt = t - duration * center_pos
+        window = 1 - apodization + apodization * np.cos(2 * np.pi * tt / duration)
+        signal = window * np.exp(-np.pi * np.square(bandwidth * tt))
+        flip = 2 * np.pi * duration * np.mean(signal)
+
+        return t + delay, signal * float(flip_angle) / flip
 
     rf = Pulse(
         flip_angle,
@@ -166,7 +176,7 @@ def make_gauss_pulse(
         generate_shape,
         use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -192,11 +202,14 @@ def make_gauss_pulse(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz, gzr)
+        ret_val = (ret_val, gz, gzr)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(calc_duration(rf) + rf.ringdown_time)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -233,7 +246,7 @@ def make_sinc_pulse(
         signal = window * np.sinc(bandwidth * tt)
         flip = 2 * np.pi * duration * np.mean(signal)
 
-        return t + delay, signal * flip_angle / flip
+        return t + delay, signal * float(flip_angle) / flip
 
     rf = Pulse(
         flip_angle,
@@ -246,7 +259,7 @@ def make_sinc_pulse(
         generate_shape,
         use
     )
-    ret_val = (rf, )
+    ret_val = rf
 
     if return_gz:
         if max_grad is None:
@@ -271,11 +284,14 @@ def make_sinc_pulse(
         if rf.delay < gz.rise_time + gz.delay:
             rf.delay = gz.rise_time + gz.delay
 
-        ret_val = (*ret_val, gz, gzr)
+        ret_val = (ret_val, gz, gzr)
 
     if return_delay and rf.ringdown_time > 0:
         delay = make_delay(rf.duration)
-        ret_val = (*ret_val, delay)
+        if isinstance(ret_val, tuple):
+            ret_val = (*ret_val, delay)
+        else:
+            ret_val = (ret_val, delay)
 
     return ret_val
 
@@ -284,7 +300,7 @@ def make_sinc_pulse(
 class Pulse:
     flip_angle: ...
     shape_dur: ...
-    freq_offset: ...  # ignored by sim
+    freq_offset: ...
     phase_offset: ...
     delay: ...
     ringdown_time: ...  # important for duration
