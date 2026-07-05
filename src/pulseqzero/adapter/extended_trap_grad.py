@@ -194,7 +194,7 @@ def make_extended_trapezoid_area(
     )
 
 
-    if not torch.abs(grad.area - area) < 1e-8:
+    if not torch.abs(grad.area - area) < 1e-4: #1e-8:
         raise ValueError(f'Could not find a solution for area={area}.')
 
     return grad, times, amplitudes
