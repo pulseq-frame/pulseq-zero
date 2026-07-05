@@ -195,6 +195,9 @@ class Sequence:
         return "No report generated in mr0 mode"
 
     def write(self, name, create_signature, remove_duplicates):
+        from warnings import warn
+        warn("Called `Sequence.write()` in mr0 mode, which does *not* create a .seq file!")
+
         if create_signature:
             return ""
         else:
@@ -202,5 +205,5 @@ class Sequence:
 
     # What we do all of this for:
     # To intercept pulseq calls and build an MR-zero sequence from it
-    def to_mr0(self) -> MRzeroCore.Sequence:
-        return seq_convert.convert(self)
+    def to_mr0(self, samples_offres: int = 1, samples_slicesel: int = 1, samples_onres: int = 1) -> MRzeroCore.Sequence:
+        return seq_convert.convert(self, samples_offres, samples_slicesel, samples_onres)
