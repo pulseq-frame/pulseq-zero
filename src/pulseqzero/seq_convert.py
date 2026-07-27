@@ -190,10 +190,22 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     # time points edges of the pulse buckets which are integrated over
     duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
     step = rf.shape_dur / samples
+
     # Adjusted to cover whole block
+    # Integration windows used to divide the RF waveform.
+    # The first and last windows include the regions before and after the
+    # RF waveform. integrate_pulse() evaluates the RF as zero there.
     t_rf = [0] + [rf.delay + step * i for i in range(1, samples)] + [duration]
+    
+    # Effective time of each instantaneous MRzero sub-pulse.
+    # These must be centred within the actual RF shape, without including
+    # RF dead time, RF delay, or ringdown in the centring operation.
+    pulse_times = [
+        rf.delay + (i + 0.5) * step
+        for i in range(samples)
+    ]
     # grads are integrated from one pulse center to the next
-    t_grad = [0] + [(t1 + t2) / 2 for t1, t2 in zip(t_rf[0:], t_rf[1:])] + [duration]
+    t_grad = [0] + pulse_times + [duration]
     
     # Alternate spoiler from one pulse center to next with pulse itself
     events: list[TmpPulse | TmpSpoiler] = []
