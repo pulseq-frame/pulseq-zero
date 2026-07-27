@@ -329,11 +329,28 @@ def integrate(grad, t):
         # https://www.desmos.com/calculator/j2vopzhb2z
 
         d = grad.delay
+
+        tt = torch.as_tensor(grad.tt)
+        waveform = torch.as_tensor(grad.waveform).reshape(-1)
+
+        if isinstance(grad, ArbitraryGrad):
+            tt = torch.cat((
+                torch.zeros(1, dtype=tt.dtype),
+                tt,
+                torch.as_tensor(grad.shape_dur, dtype=tt.dtype).reshape(1),
+            ))
+
+            waveform = torch.cat((
+                torch.as_tensor(grad.first, dtype=waveform.dtype).reshape(1),
+                waveform,
+                torch.as_tensor(grad.last, dtype=waveform.dtype).reshape(1),
+            ))
+
         # Start and end time point and amplitude of all line segments
-        t1 = d + torch.as_tensor(grad.tt[:-1])
-        t2 = d + torch.as_tensor(grad.tt[1:])
-        c1 = torch.as_tensor(grad.waveform[:-1])
-        c2 = torch.as_tensor(grad.waveform[1:])
+        t1 = d + tt[:-1]
+        t2 = d + tt[1:]
+        c1 = waveform[:-1]
+        c2 = waveform[1:]
 
         # This is how much of every segment contributes, clamped to [0, width]
         t_rel = torch.clamp(t - t1, 0 * t1, t2 - t1)
