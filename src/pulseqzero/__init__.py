@@ -14,16 +14,26 @@ Zaiss, "Pulseq-zero: PyPulseq sequence scripts in a differentiable
 optimization loop" (ISMRM 2025, abstract/abstract.md) for the underlying idea.
 """
 
+# Imports are interleaved with __version__ / numpy-patch / __all__ setup below,
+# so module-level imports don't all sit at the top of the file - intentional.
+# ruff: noqa: E402
+
 # We mimic the version of the installed pypulseq in case users rely on it
 import importlib.metadata
 __version__ = importlib.metadata.version("pypulseq")
 
-# some package version combinations rely on these types which were removed
 import numpy
-numpy.complex = numpy.complex128
-numpy.float = numpy.float64
-numpy.int = numpy.int_
-numpy.bool = numpy.bool_
+
+# some package version combinations rely on these types which were removed;
+# only patch them in if the installed numpy doesn't already provide them
+if not hasattr(numpy, "complex"):
+    numpy.complex = numpy.complex128  # ty: ignore[unresolved-attribute]
+if not hasattr(numpy, "float"):
+    numpy.float = numpy.float64  # ty: ignore[unresolved-attribute]
+if not hasattr(numpy, "int"):
+    numpy.int = numpy.int_  # ty: ignore[unresolved-attribute]
+if not hasattr(numpy, "bool"):
+    numpy.bool = numpy.bool_
 
 __all__ = [
     "Opts",
