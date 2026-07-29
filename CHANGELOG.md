@@ -5,6 +5,24 @@ All notable changes to pulseq-zero are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1]
+
+### Fixed
+
+- **Arbitrary gradients: endpoints now included when integrating.**
+  `seq_convert.integrate` previously integrated only over the internal
+  `grad.tt` / `grad.waveform` samples of an `ArbitraryGrad`, silently
+  dropping the `first` and `last` boundary samples. The waveform is now
+  padded with `first` at `t=0` and `last` at `t=shape_dur` before
+  integration, so the ramps into and out of the free waveform are
+  accounted for.
+- **`parse_pulse`: sub-pulse centring matches PyPulseq's RF timing.**
+  The effective time of each MRzero sub-pulse is now centred within the
+  RF shape itself (`rf.delay + (i + 0.5) * step`), rather than being
+  derived from the midpoints of the integration windows used to bucket
+  the waveform. This changes (and corrects) the timing of ADC samples
+  during simulation to match PyPulseq's definition of RF timing.
+
 ## [1.0.0]
 
 The 1.0 release unifies pulseq-zero into a single, always-on facade. The

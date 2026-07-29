@@ -190,10 +190,22 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
     # time points edges of the pulse buckets which are integrated over
     duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
     step = rf.shape_dur / samples
+
     # Adjusted to cover whole block
+    # Integration windows used to divide the RF waveform.
+    # The first and last windows include the regions before and after the
+    # RF waveform. integrate_pulse() evaluates the RF as zero there.
     t_rf = [0] + [rf.delay + step * i for i in range(1, samples)] + [duration]
+    
+    # Effective time of each instantaneous MRzero sub-pulse.
+    # These must be centred within the actual RF shape, without including
+    # RF dead time, RF delay, or ringdown in the centring operation.
+    pulse_times = [
+        rf.delay + (i + 0.5) * step
+        for i in range(samples)
+    ]
     # grads are integrated from one pulse center to the next
-    t_grad = [0] + [(t1 + t2) / 2 for t1, t2 in zip(t_rf[0:], t_rf[1:])] + [duration]
+    t_grad = [0] + pulse_times + [duration]
     
     # Alternate spoiler from one pulse center to next with pulse itself
     events: list[TmpPulse | TmpSpoiler] = []
@@ -329,11 +341,28 @@ def integrate(grad, t):
         # https://www.desmos.com/calculator/j2vopzhb2z
 
         d = grad.delay
+
+        tt = torch.as_tensor(grad.tt)
+        waveform = torch.as_tensor(grad.waveform).reshape(-1)
+
+        if isinstance(grad, ArbitraryGrad):
+            tt = torch.cat((
+                torch.zeros(1, dtype=tt.dtype),
+                tt,
+                torch.as_tensor(grad.shape_dur, dtype=tt.dtype).reshape(1),
+            ))
+
+            waveform = torch.cat((
+                torch.as_tensor(grad.first, dtype=waveform.dtype).reshape(1),
+                waveform,
+                torch.as_tensor(grad.last, dtype=waveform.dtype).reshape(1),
+            ))
+
         # Start and end time point and amplitude of all line segments
-        t1 = d + torch.as_tensor(grad.tt[:-1])
-        t2 = d + torch.as_tensor(grad.tt[1:])
-        c1 = torch.as_tensor(grad.waveform[:-1])
-        c2 = torch.as_tensor(grad.waveform[1:])
+        t1 = d + tt[:-1]
+        t2 = d + tt[1:]
+        c1 = waveform[:-1]
+        c2 = waveform[1:]
 
         # This is how much of every segment contributes, clamped to [0, width]
         t_rel = torch.clamp(t - t1, 0 * t1, t2 - t1)
