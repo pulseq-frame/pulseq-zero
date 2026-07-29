@@ -1,13 +1,18 @@
-"""Temporary pulseq-zero description.
+"""Pulseq-zero: differentiable PyPulseq sequences for MR-zero.
 
-This is pulseq-zero, a wrapper around pypulseq. When swapping imports, sequence
-scripts should continue to run as they did under pypulseq. But the underlying
-architecture changed: All calls are converted to an intermediate format that
-allows to plot and write sequences as before but also to convert to MR-zero
-while passing through torch tensors and their backpropagation graph. This way,
-gradient descent optimization with a seq script in the loop becomes possible.
+A drop-in replacement for pypulseq (``import pulseqzero as pp``): sequence
+scripts run unmodified, but every call is recorded into an intermediate,
+differentiable event graph instead of pypulseq's native objects. From that
+graph, ``seq.write()`` / ``seq.plot()`` reconstruct a real pypulseq
+``Sequence`` on demand, and ``seq.to_mr0()`` builds an ``MRzeroCore.Sequence``
+directly from the live torch tensors - so gradients from any
+``requires_grad=True`` sequence parameter flow through PDG simulation and back
+via backpropagation, without ever leaving the tensor graph.
+
+See the README for usage and the differentiability contract, and Endres &
+Zaiss, "Pulseq-zero: PyPulseq sequence scripts in a differentiable
+optimization loop" (ISMRM 2025, abstract/abstract.md) for the underlying idea.
 """
-# TODO: write the module docstring.
 
 # We mimic the version of the installed pypulseq in case users rely on it
 import importlib.metadata
