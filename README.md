@@ -132,7 +132,7 @@ uv run demo/write_tse.py   # build a TSE sequence, plot it, and emit tse_pypulse
 
 Good to know:
 
-- **No test suite, no linter, no CI for correctness.** The two demo scripts *are* the acceptance gate: `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR, and `demo/write_tse.py` must produce a `.seq` file that round-trips byte-for-byte against the pypulseq reference (the unified adapter guarantees this; see `to_pypulseq()` in [adapter/sequence.py](src/pulseqzero/adapter/sequence.py)).
+- **No unit test suite, no linter.** CI ([.github/workflows/adapter-check.yml](.github/workflows/adapter-check.yml)) runs [demo/test_pypulseq_sequence_all_funcs.py](demo/test_pypulseq_sequence_all_funcs.py) on every push/PR, an API completeness/parity probe against the coverage table below — not a numerical-correctness test suite. The two demo scripts are the closest thing to an acceptance gate: `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR, and `demo/write_tse.py` must produce a `.seq` file that round-trips byte-for-byte against the pypulseq reference (the unified adapter guarantees this; see `to_pypulseq()` in [wrapper/sequence.py](src/pulseqzero/wrapper/sequence.py)).
 - **PyTorch CUDA pin.** [demo/pyproject.toml](demo/pyproject.toml) references the CUDA 12.6 wheel index (`download.pytorch.org/whl/cu126`). Swap that index URL (or remove it) if you're on CPU-only or a different CUDA version.
 - **Headless plotting.** `seq.plot()` forwards to pypulseq's plot and expects an interactive matplotlib backend. Export `MPLBACKEND=Agg` to run headless (Agg will render but not show — useful for CI-style runs).
 - **Falling back to plain pip.** If you'd rather skip uv, `pip install --editable .` from the root still works — but the root declares no runtime deps, so you need `pypulseq==1.5.0.post1`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` already in the env (a venv created with `--system-site-packages` and an existing MR-zero install is the path of least resistance).
@@ -162,6 +162,8 @@ assert my_param.grad == torch.cos(my_param)
 ```
 
 Use these whenever you round a timing (or any sequence quantity) that flows from an optimization parameter. For plain numeric rounding outside optimization, `np.round` / `torch.round` are fine.
+
+See [MATH.md](MATH.md) for the full set of differentiable math helpers, including `round_half_up` and the internal `interp` used for gradient waveform resampling.
 
 ### `seq.to_mr0()` and `seq.write()`
 
@@ -196,6 +198,10 @@ The following are **not** differentiable today (they affect pulse *shape*, which
 - `Opts` fields (max_grad, rasters, dead times) — intentionally numeric
 
 Pulse-shape autograd can be added back per-factory via an opt-in flag if it ever becomes load-bearing.
+
+### pTx `shim_array` (optional)
+
+Every RF factory (`make_block_pulse`, `make_gauss_pulse`, `make_sinc_pulse`, `make_arbitrary_rf`) accepts an optional `shim_array` kwarg: a per-channel transmit shim, carried through unchanged to `to_mr0()` / `to_pypulseq()`. It is only meaningful together with Martin's pTx fork of pypulseq (which adds `set_tx_mode`); pulseq-zero re-exports `set_tx_mode` when that fork is detected at import time, and is a no-op for everyone else. Regular single-channel sequences can ignore this parameter entirely.
 
 
 ## 5. References
