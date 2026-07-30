@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import math
+from typing import overload
 
 
 class Ceil(torch.autograd.Function):
@@ -45,10 +46,18 @@ class Round(torch.autograd.Function):
         return grad_outputs
 
 
-def ceil(x: torch.Tensor) -> torch.Tensor:
+@overload
+def ceil(x: int) -> int: ...
+@overload
+def ceil(x: float) -> float: ...
+@overload
+def ceil(x: torch.Tensor) -> torch.Tensor: ...
+def ceil(x: int | float | torch.Tensor) -> int | float | torch.Tensor:
     """Differentiable version of torch.ceil.
     For gradient calculation, this mimicks the identity function."""
-    if isinstance(x, float):
+    if isinstance(x, int):
+        return x
+    elif isinstance(x, float):
         return math.ceil(x)
     try:
         return Ceil.apply(x)
@@ -56,23 +65,44 @@ def ceil(x: torch.Tensor) -> torch.Tensor:
         return torch.as_tensor(np.ceil(x))
 
 
-def floor(x: torch.Tensor) -> torch.Tensor:
+@overload
+def floor(x: int) -> int: ...
+@overload
+def floor(x: float) -> float: ...
+@overload
+def floor(x: torch.Tensor) -> torch.Tensor: ...
+def floor(x: int | float | torch.Tensor) -> int | float | torch.Tensor:
     """Differentiable version of torch.floor.
     For gradient calculation, this mimicks the identity function."""
+    if isinstance(x, int):
+        return x
+    elif isinstance(x, float):
+        return math.floor(x)
     try:
         return Floor.apply(x)
     except TypeError:
         return torch.as_tensor(np.floor(x))
 
 
-def round(x: torch.Tensor) -> torch.Tensor:
+@overload
+def round(x: int) -> int: ...
+@overload
+def round(x: float) -> float: ...
+@overload
+def round(x: torch.Tensor) -> torch.Tensor: ...
+def round(x: int | float | torch.Tensor) -> int | float | torch.Tensor:
     """Differentiable version of torch.round.
     For gradient calculation, this mimicks the identity function."""
+    if isinstance(x, int):
+        return x
+    elif isinstance(x, float):
+        return round(x)
     try:
         return Round.apply(x)
     except TypeError:
         return torch.as_tensor(np.round(x))
-    
+
+
 def interp(x, xp, fp, left=None, right=None, tol=None) -> torch.Tensor:
     """Autograd-compatible 1D linear interpolation, mirroring numpy.interp.
 
@@ -103,6 +133,7 @@ def interp(x, xp, fp, left=None, right=None, tol=None) -> torch.Tensor:
     y = torch.where(x < xp[0] - tol, torch.as_tensor(left, dtype=y.dtype), y)
     y = torch.where(x > xp[-1] + tol, torch.as_tensor(right, dtype=y.dtype), y)
     return y
+
 
 def round_half_up(n, decimals=0):
     """Differentiable version of rouding (avoiding banker's rounding).

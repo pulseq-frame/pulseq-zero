@@ -318,7 +318,7 @@ def make_arbitrary_rf(
     shim_array: Optional[Array] = None,
 ) -> RfPulse | tuple[RfPulse, TrapGrad]:
     if system is None:
-        system = Opts.default
+        system = cast(Opts, Opts.default)
 
     valid_uses = get_supported_rf_uses()
     if use != "" and use not in valid_uses:

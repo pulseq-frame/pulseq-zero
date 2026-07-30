@@ -38,11 +38,11 @@ def make_trapezoid(
 
     # set parameters from provided values
     if system is None:
-        system = Opts.default
+        system: Opts = Opts.default
     if max_grad is None:
-        max_grad = cast(float, system.max_grad)
+        max_grad = system.max_grad
     if max_slew is None:
-        max_slew = cast(float, system.max_slew)
+        max_slew = system.max_slew
     if fall_time is None:
         fall_time = rise_time
     elif rise_time is None:
