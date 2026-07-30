@@ -19,3 +19,11 @@ def _n(x):
     if arr.shape == () or (arr.ndim == 1 and arr.shape[0] == 1):
         return float(arr.item())
     return arr
+
+def _r(x, raster):
+    """Ceil to raster_time"""
+    result = np.ceil(np.round(x / raster, decimals=4), dtype=np.float64) * raster
+    if np.isscalar(x):
+        return float(result)
+    return result
+

@@ -24,7 +24,7 @@ import torch
 import pypulseq as pp
 from pypulseq import Opts
 from pypulseq.make_arbitrary_grad import make_arbitrary_grad as _pp_make_arbitrary_grad
-from .wrapper import _n
+from .wrapper import _n, _r
 
 # pypulseq 1.5+ added first/last/oversampling to make_arbitrary_grad
 _PP_ARB_GRAD_HAS_EXTRAS = "first" in _inspect.signature(_pp_make_arbitrary_grad).parameters
@@ -46,7 +46,7 @@ class Label:
 
     def to_pulseq(self, system: Opts):
         typ = "INC" if self.inc else "SET"
-        pp.make_label(self.label, typ, self.value)
+        return pp.make_label(self.label, typ, self.value)
 
 
 @dataclass
@@ -109,10 +109,10 @@ class TrapGrad:
         return pp.make_trapezoid(
             channel=self.channel,
             amplitude=_n(self.amplitude),
-            rise_time=_n(self.rise_time),
-            flat_time=_n(self.flat_time),
-            fall_time=_n(self.fall_time),
-            delay=_n(self.delay),
+            rise_time=_r(_n(self.rise_time), system.grad_raster_time),
+            flat_time=_r(_n(self.flat_time), system.grad_raster_time),
+            fall_time=_r(_n(self.fall_time), system.grad_raster_time),
+            delay=_r(_n(self.delay), system.grad_raster_time),
             system=system,
         )
 
@@ -157,7 +157,7 @@ class ArbitraryGrad:
         return _pp_make_arbitrary_grad(
             channel=self.channel,
             waveform=_n(self.waveform),
-            delay=_n(self.delay),
+            delay=_r(_n(self.delay), system.grad_raster_time),
             system=system,
             **({"first": _n(self.first), "last": _n(self.last),
                 "oversampling": self.oversampling} if _PP_ARB_GRAD_HAS_EXTRAS else {}),
@@ -212,7 +212,7 @@ class ExtTrapGrad:
             channel=self.channel,
             amplitudes=_n(self.waveform),
             convert_to_arbitrary=False,
-            times=_n(self._times),
+            times=_r(_n(self._times), system.grad_raster_time),
             system=system,
         )
 
@@ -234,8 +234,8 @@ class Adc:
     def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_adc(
             num_samples=self.num_samples,
-            delay=_n(self.delay),
-            dwell=_n(self.dwell),
+            delay=_r(_n(self.delay), system.grad_raster_time),
+            dwell=_r(_n(self.dwell), system.adc_raster_time),
             freq_offset=_n(self.freq_offset),
             phase_offset=_n(self.phase_offset),
             system=system,

@@ -221,10 +221,10 @@ class Sequence:
             pp_events = [ev.to_pulseq(self.system) for ev in block]
             pp_seq.add_block(*pp_events)
         for key, value in self.definitions.items():
-            pp_seq.set_definition(key=key, value=_n(value))
+            pp_seq.set_definition(key=key, value=_n(value) if not isinstance(value, str) else value)
         return pp_seq
 
     def to_mr0(
-        self, samples_offres: int = 1, samples_slicesel: int = 1
+        self, samples_offres: int = 1, samples_slicesel: int = 1, samples_onres: int = 1
     ) -> MRzeroCore.Sequence:
-        return seq_convert.convert(self, samples_offres, samples_slicesel)
+        return seq_convert.convert(self, samples_offres, samples_slicesel, samples_onres)

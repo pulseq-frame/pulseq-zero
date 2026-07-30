@@ -3,6 +3,7 @@ from typing import cast, Literal, Optional, overload
 from pypulseq import Opts
 from ..events import TrapGrad, Scalar, ExtTrapGrad, Array, ArbitraryGrad
 from .grad_funcs import points_to_waveform
+from ..math import ceil
 import numpy as np
 
 
@@ -37,11 +38,11 @@ def make_trapezoid(
 
     # set parameters from provided values
     if system is None:
-        system = Opts.default
+        system: Opts = Opts.default
     if max_grad is None:
-        max_grad = cast(float, system.max_grad)
+        max_grad = system.max_grad
     if max_slew is None:
-        max_slew = cast(float, system.max_slew)
+        max_slew = system.max_slew
     if fall_time is None:
         fall_time = rise_time
     elif rise_time is None:
@@ -53,7 +54,7 @@ def make_trapezoid(
         if duration is not None and flat_time is None:
             if rise_time is None or fall_time is None:
                 _, rise_time, _, fall_time = calculate_shortest_params_for_area(
-                    area, max_slew, max_grad
+                    area, max_slew, max_grad, system.grad_raster_time
                 )
             flat_time = duration - rise_time - fall_time
             amplitude2 = area / (rise_time / 2 + fall_time / 2 + flat_time)
@@ -69,7 +70,7 @@ def make_trapezoid(
         # no timing given -> compute shortest possible gradient
         else:
             amplitude2, rise_time, flat_time, fall_time = (
-                calculate_shortest_params_for_area(area, max_slew, max_grad)
+                calculate_shortest_params_for_area(area, max_slew, max_grad, system.grad_raster_time)
             )
 
     # calc_path == "flat_area"
@@ -83,12 +84,12 @@ def make_trapezoid(
     # calc_path == "amplitude"
     elif area is None and flat_area is None and amplitude is not None:
         if rise_time is None or fall_time is None:
-            rise_time = abs(amplitude) / max_slew
+            rise_time = ceil(abs(amplitude) / max_slew / system.grad_raster_time) * system.grad_raster_time
             fall_time = rise_time
 
         amplitude2 = amplitude
         if duration is not None and flat_time is None:
-            flat_time = duration - rise_time - fall_time
+            flat_time = ceil((duration - rise_time - fall_time) / system.grad_raster_time) * system.grad_raster_time
         elif flat_time is not None and duration is None:
             pass
         else:
@@ -103,7 +104,7 @@ def make_trapezoid(
         raise ValueError("Must supply either 'area', 'flat_area' or 'amplitude'.")
 
     if rise_time is None or fall_time is None:
-        rise_time = fall_time = abs(amplitude2) / max_slew
+        rise_time = fall_time = ceil(abs(amplitude2) / max_slew / system.grad_raster_time) * system.grad_raster_time
 
     return TrapGrad(
         channel=channel,
@@ -116,9 +117,11 @@ def make_trapezoid(
 
 
 def calculate_shortest_params_for_area(
-    area: Scalar, max_slew: Scalar, max_grad: Scalar
+    area: Scalar, max_slew: Scalar, max_grad: Scalar, grad_raster_time: Scalar
 ) -> tuple[Scalar, Scalar, Scalar, Scalar]:
-    rise_time = (abs(area) / max_slew) ** 0.5
+    rise_time = ceil((abs(area) / max_slew) ** 0.5 / grad_raster_time) * grad_raster_time 
+    
+    rise_time = max(rise_time, grad_raster_time)
 
     # Calculate initial amplitude
     amplitude = area / rise_time
@@ -126,9 +129,9 @@ def calculate_shortest_params_for_area(
 
     # Adjust for max gradient constraint
     if abs(amplitude) > max_grad:
-        effective_time = abs(area) / max_grad
+        effective_time = ceil(abs(area) / max_grad / grad_raster_time) * grad_raster_time
         amplitude = area / effective_time
-        rise_time = abs(amplitude) / max_slew
+        rise_time = ceil(abs(amplitude) / max_slew / grad_raster_time) * grad_raster_time
 
     # Calculate flat and fall times
     flat_time = effective_time - rise_time
@@ -304,6 +307,9 @@ def make_extended_trapezoid_area(
         max_grad = system.max_grad
     if max_slew is None:
         max_slew = system.max_slew
+    
+    max_grad = max_grad * 0.99
+    max_slew = max_slew * 0.99
 
     if channel not in ["x", "y", "z"]:
         raise ValueError(
@@ -536,7 +542,7 @@ def make_extended_trapezoid_area(
         times=times,
     )
 
-    if not abs(float(torch.as_tensor(grad.area).detach()) - area) < eps:
+    if not abs(float(torch.as_tensor(grad.area).detach()) - area) < 1e-8:
         raise ValueError(f"Could not find a solution for area={area}.")
 
     return grad, grad.tt, grad.waveform

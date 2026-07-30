@@ -3,15 +3,19 @@ import MRzeroCore as mr0
 from . import calc_duration
 from .events import Adc, Delay, SoftDelay, RfPulse, TrapGrad, ExtTrapGrad, ArbitraryGrad
 
+
 def convert_tensors_to_float32(obj):
-    if hasattr(obj, '__dataclass_fields__'):
+    if hasattr(obj, "__dataclass_fields__"):
         for field_name in obj.__dataclass_fields__:
             value = getattr(obj, field_name)
             if isinstance(value, torch.Tensor) and value.dtype == torch.float64:
                 setattr(obj, field_name, value.to(dtype=torch.float32))
     return obj
 
-def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
+
+def convert(
+    pp0, samples_offres: int, samples_slicesel: int, samples_onres: int
+) -> mr0.Sequence:
     seq = []
 
     for block in pp0.blocks:
@@ -52,7 +56,7 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
             elif grad_x or grad_y or grad_z:
                 samples = samples_slicesel
             else:
-                samples = 1
+                samples = samples_onres
 
             seq += parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples)
         elif adc:
@@ -83,13 +87,19 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
 
-        rep_out.pulse.freq_offset = torch.as_tensor(rep_in[0].freq_offset, dtype=torch.float32)
-        rep_out.pulse.duration = torch.as_tensor(rep_in[0].duration, dtype=torch.float32)
-        rep_out.pulse.grad = torch.stack([
-            torch.as_tensor(rep_in[0].grad_x, dtype=torch.float32),
-            torch.as_tensor(rep_in[0].grad_y, dtype=torch.float32),
-            torch.as_tensor(rep_in[0].grad_z, dtype=torch.float32),
-        ])
+        rep_out.pulse.freq_offset = torch.as_tensor(
+            rep_in[0].freq_offset, dtype=torch.float32
+        )
+        rep_out.pulse.duration = torch.as_tensor(
+            rep_in[0].duration, dtype=torch.float32
+        )
+        rep_out.pulse.grad = torch.stack(
+            [
+                torch.as_tensor(rep_in[0].grad_x, dtype=torch.float32),
+                torch.as_tensor(rep_in[0].grad_y, dtype=torch.float32),
+                torch.as_tensor(rep_in[0].grad_z, dtype=torch.float32),
+            ]
+        )
         rep_out.pulse.off_res = bool(
             (rep_out.pulse.freq_offset != 0).any().item()
             or (rep_out.pulse.grad != 0).any().item()
@@ -120,10 +130,10 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
             else:
                 assert isinstance(ev, TmpAdc)
                 num = len(ev.event_time)
-                rep_out.event_time[i:i+num] = torch.as_tensor(ev.event_time)
-                rep_out.gradm[i:i+num, :] = torch.as_tensor(ev.gradm)
-                rep_out.adc_phase[i:i+num] = torch.pi / 2 - ev.phase
-                rep_out.adc_usage[i:i+num] = 1
+                rep_out.event_time[i : i + num] = torch.as_tensor(ev.event_time)
+                rep_out.gradm[i : i + num, :] = torch.as_tensor(ev.gradm)
+                rep_out.adc_phase[i : i + num] = torch.pi / 2 - ev.phase
+                rep_out.adc_usage[i : i + num] = 1
                 i += num
 
     seq.normalized_grads = False
@@ -131,10 +141,21 @@ def convert(pp0, samples_offres: int, samples_slicesel: int) -> mr0.Sequence:
 
 
 class TmpPulse:
-    def __init__(self, angle, phase, duration, freq_offset, grad_x, grad_y, grad_z, shim_array, use: mr0.PulseUsage) -> None:
+    def __init__(
+        self,
+        angle,
+        phase,
+        duration,
+        freq_offset,
+        grad_x,
+        grad_y,
+        grad_z,
+        shim_array,
+        use: mr0.PulseUsage,
+    ) -> None:
         self.angle = angle
         self.phase = phase
-        self.freq_offset = freq_offset 
+        self.freq_offset = freq_offset
         self.grad_x = grad_x
         self.grad_y = grad_y
         self.grad_z = grad_z
@@ -144,17 +165,20 @@ class TmpPulse:
 
     def __repr__(self) -> str:
         from math import pi
+
         return f"Pulse(angle={self.angle * 180 / pi}°, phase={self.phase * 180 / pi}°, shim_array={self.shim_array}, use={self.use})"
 
 
 class TmpSpoiler:
     def __init__(self, duration, gx, gy, gz) -> None:
         self.duration = torch.as_tensor(duration)
-        self.gradm = torch.cat([
-            torch.as_tensor(gx).view(1),
-            torch.as_tensor(gy).view(1),
-            torch.as_tensor(gz).view(1)
-        ])
+        self.gradm = torch.cat(
+            [
+                torch.as_tensor(gx).view(1),
+                torch.as_tensor(gy).view(1),
+                torch.as_tensor(gz).view(1),
+            ]
+        )
 
     def __repr__(self) -> str:
         return f"Spoiler(gradm={self.gradm}, duration={self.duration})"
@@ -168,13 +192,16 @@ class TmpAdc:
 
     def __repr__(self) -> str:
         from math import pi
+
         return f"Adc(phase={self.phase * 180 / pi}°, total_gradm={self.gradm.sum(0)}, total_time={self.event_time.sum(0)})"
 
 
-def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPulse | TmpSpoiler]:
-    if rf.use == 'excitation':
+def parse_pulse(
+    delay, rf, grad_x, grad_y, grad_z, samples: int
+) -> list[TmpPulse | TmpSpoiler]:
+    if rf.use == "excitation":
         use = mr0.PulseUsage.EXCIT
-    elif rf.use == 'refocusing':
+    elif rf.use == "refocusing":
         use = mr0.PulseUsage.REFOC
     else:
         use = mr0.PulseUsage.UNDEF
@@ -184,9 +211,9 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
             t2 - t1,
             integrate(grad_x, t2) - integrate(grad_x, t1) if grad_x else 0.0,
             integrate(grad_y, t2) - integrate(grad_y, t1) if grad_y else 0.0,
-            integrate(grad_z, t2) - integrate(grad_z, t1) if grad_z else 0.0
+            integrate(grad_z, t2) - integrate(grad_z, t1) if grad_z else 0.0,
         )
-    
+
     # time points edges of the pulse buckets which are integrated over
     duration = calc_duration(delay, rf, grad_x, grad_y, grad_z)
     step = rf.shape_dur / samples
@@ -215,46 +242,67 @@ def parse_pulse(delay, rf, grad_x, grad_y, grad_z, samples: int) -> list[TmpPuls
         events.append(calc_spoiler(t_grad[i], t_grad[i + 1]))
         flip, phase = integrate_pulse(rf, t_rf[i], t_rf[i + 1])
 
-        # phase profile due to off-resonance   
+        # phase profile due to off-resonance
         phase += phase_increment
-        phase_increment += 2*torch.pi * rf.freq_offset * step
-        
-        rf_dur = rf.delay + rf.shape_dur # rf duration without ringdown    
+        phase_increment += 2 * torch.pi * rf.freq_offset * step
 
-        # handle gradients in parallel to pulse   
-        if grad_x: 
-            if rf_dur <= grad_x.delay: # gradient in block starts after pulse has ended   
-                grad_ampl_x = 0 
+        rf_dur = rf.delay + rf.shape_dur  # rf duration without ringdown
+
+        # handle gradients in parallel to pulse
+        if grad_x:
+            if rf_dur <= grad_x.delay:  # gradient in block starts after pulse has ended
+                grad_ampl_x = 0
             else:
                 # distinguish between TrapGrad and FreeGrad
-                if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):                    
+                if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):
                     # find closest waveform point to gradient timepoint
-                    grad_ampl_x = grad_x.waveform[torch.argmin(torch.abs(grad_x.tt - t_grad[i+1]))]
-                else: grad_ampl_x = grad_x.amplitude 
-        else: 
+                    grad_ampl_x = grad_x.waveform[
+                        torch.argmin(torch.abs(grad_x.tt - t_grad[i + 1]))
+                    ]
+                else:
+                    grad_ampl_x = grad_x.amplitude
+        else:
             grad_ampl_x = 0
-            
-        if grad_y: 
-            if rf_dur <= grad_y.delay:  
-                grad_ampl_y = 0 
+
+        if grad_y:
+            if rf_dur <= grad_y.delay:
+                grad_ampl_y = 0
             else:
                 if isinstance(grad_y, ExtTrapGrad | ArbitraryGrad):
-                    grad_ampl_y = grad_y.waveform[torch.argmin(torch.abs(grad_y.tt - t_grad[i+1]))]
-                else: grad_ampl_y = grad_y.amplitude 
-        else:             
-            grad_ampl_y = 0 
-            
-        if grad_z: 
-            if rf_dur <= grad_z.delay:           
-                grad_ampl_z = 0 
+                    grad_ampl_y = grad_y.waveform[
+                        torch.argmin(torch.abs(grad_y.tt - t_grad[i + 1]))
+                    ]
+                else:
+                    grad_ampl_y = grad_y.amplitude
+        else:
+            grad_ampl_y = 0
+
+        if grad_z:
+            if rf_dur <= grad_z.delay:
+                grad_ampl_z = 0
             else:
-                if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):                    
-                    grad_ampl_z = grad_z.waveform[torch.argmin(torch.abs(grad_z.tt - t_grad[i+1]))]
-                else: grad_ampl_z = grad_z.amplitude 
-        else: 
+                if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):
+                    grad_ampl_z = grad_z.waveform[
+                        torch.argmin(torch.abs(grad_z.tt - t_grad[i + 1]))
+                    ]
+                else:
+                    grad_ampl_z = grad_z.amplitude
+        else:
             grad_ampl_z = 0
-        
-        events.append(TmpPulse(flip, phase, step, rf.freq_offset, grad_ampl_x, grad_ampl_y, grad_ampl_z, rf.shim_array, use))
+
+        events.append(
+            TmpPulse(
+                flip,
+                phase,
+                step,
+                rf.freq_offset,
+                grad_ampl_x,
+                grad_ampl_y,
+                grad_ampl_z,
+                rf.shim_array,
+                use,
+            )
+        )
     events.append(calc_spoiler(t_grad[-2], t_grad[-1]))
 
     return events
@@ -265,17 +313,19 @@ def parse_spoiler(delay, grad_x, grad_y, grad_z) -> tuple[TmpSpoiler]:
     gx = grad_x.area if grad_x is not None else 0.0
     gy = grad_y.area if grad_y is not None else 0.0
     gz = grad_z.area if grad_z is not None else 0.0
-    return (TmpSpoiler(duration, gx, gy, gz), )
+    return (TmpSpoiler(duration, gx, gy, gz),)
 
 
 # TODO: why does only adc have typing?
 def parse_adc(delay, adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoiler]:
     duration = calc_duration(delay, adc, grad_x, grad_y, grad_z)
-    time = torch.cat([
-        torch.as_tensor(0.0).view((1, )),
-        adc.delay + (torch.arange(adc.num_samples) + 0.5) * adc.dwell,
-        torch.as_tensor(duration).view((1, ))
-    ])
+    time = torch.cat(
+        [
+            torch.as_tensor(0.0).view((1,)),
+            adc.delay + (torch.arange(adc.num_samples) + 0.5) * adc.dwell,
+            torch.as_tensor(duration).view((1,)),
+        ]
+    )
 
     gradm = torch.zeros((adc.num_samples + 2, 3))
     if grad_x:
@@ -289,11 +339,14 @@ def parse_adc(delay, adc: Adc, grad_x, grad_y, grad_z) -> tuple[TmpAdc, TmpSpoil
     gradm = torch.diff(gradm, dim=0)
     # Per-sample ADC phase: constant phase_offset plus time-varying freq_offset term.
     # t_samples are the centre times of each ADC dwell interval.
-    t_samples = adc.delay + (torch.arange(adc.num_samples, dtype=torch.float32) + 0.5) * adc.dwell
+    t_samples = (
+        adc.delay
+        + (torch.arange(adc.num_samples, dtype=torch.float32) + 0.5) * adc.dwell
+    )
     adc_phase = adc.phase_offset + 2 * torch.pi * adc.freq_offset * t_samples
     return (
         TmpAdc(event_time[:-1], gradm[:-1, :], adc_phase),
-        TmpSpoiler(event_time[-1], gradm[-1, 0], gradm[-1, 1], gradm[-1, 2])
+        TmpSpoiler(event_time[-1], gradm[-1, 0], gradm[-1, 1], gradm[-1, 2]),
     )
 
 
@@ -308,7 +361,9 @@ def integrate(grad, t):
         # heaviside could be replaced with error function for differentiability
         def h(x):
             try:
-                return torch.heaviside(torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype))
+                return torch.heaviside(
+                    torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype)
+                )
             except AttributeError:
                 return 0 if x < 0 else 1 if x > 0 else 0.5
 
@@ -329,9 +384,9 @@ def integrate(grad, t):
         # f = grad.amplitude * (f1 + f2 + f3)
 
         F_inf = t1 / 2 + t2 + t3 / 2
-        F1 = h(t - d) * h(T1 - t) * 0.5 * (t - d)**2 / t1
+        F1 = h(t - d) * h(T1 - t) * 0.5 * (t - d) ** 2 / t1
         F2 = h(t - T1) * h(T12 - t) * (t1 / 2 + t - T1)
-        F3 = h(t - T12) * h(T123 - t) * (F_inf - 0.5 * (T123 - t)**2 / t3)
+        F3 = h(t - T12) * h(T123 - t) * (F_inf - 0.5 * (T123 - t) ** 2 / t3)
         F = grad.amplitude * (F1 + F2 + F3 + h(t - T123) * F_inf)
 
         return F
@@ -380,8 +435,10 @@ def integrate(grad, t):
 
 def integrate_pulse(rf: RfPulse, t_start, t_end):
     import numpy as np
+
     # HACK: horrible hack to get integration going, maybe pulses *should* store their shape?
     from pypulseq import Opts
+
     pp_rf = rf.to_pulseq(Opts.default)
     t_rel = pp_rf.t
     amp_shape = pp_rf.signal
@@ -412,6 +469,8 @@ def integrate_pulse(rf: RfPulse, t_start, t_end):
     fraction = float(window_area / full_area) if full_area != 0 else 0.0
 
     flip = torch.as_tensor(rf.flip_angle) * fraction
-    phase = rf.phase_offset + 0.0  # not returned by the _generate_shape() function - extend!
+    phase = (
+        rf.phase_offset + 0.0
+    )  # not returned by the _generate_shape() function - extend!
 
     return flip, phase
