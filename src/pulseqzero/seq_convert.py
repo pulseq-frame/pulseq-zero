@@ -82,8 +82,11 @@ def convert(
                 event_count += 1
 
         rep_out = seq.new_rep(event_count)
-        rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle)
-        rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase)
+        # dtype is pinned: a flip angle given as a numpy scalar (np.deg2rad(90),
+        # ubiquitous in pypulseq scripts) would otherwise make pulse.angle
+        # float64 and execute_graph fail against a float32 phantom.
+        rep_out.pulse.angle = torch.as_tensor(rep_in[0].angle, dtype=torch.float32)
+        rep_out.pulse.phase = torch.as_tensor(rep_in[0].phase, dtype=torch.float32)
         if rep_in[0].shim_array is not None:
             rep_out.pulse.shim_array = rep_in[0].shim_array
 
@@ -257,7 +260,7 @@ def parse_pulse(
                 if isinstance(grad_x, ExtTrapGrad | ArbitraryGrad):
                     # find closest waveform point to gradient timepoint
                     grad_ampl_x = grad_x.waveform[
-                        torch.argmin(torch.abs(grad_x.tt - t_grad[i + 1]))
+                        torch.argmin(torch.abs(torch.as_tensor(grad_x.tt) - t_grad[i + 1]))
                     ]
                 else:
                     grad_ampl_x = grad_x.amplitude
@@ -270,7 +273,7 @@ def parse_pulse(
             else:
                 if isinstance(grad_y, ExtTrapGrad | ArbitraryGrad):
                     grad_ampl_y = grad_y.waveform[
-                        torch.argmin(torch.abs(grad_y.tt - t_grad[i + 1]))
+                        torch.argmin(torch.abs(torch.as_tensor(grad_y.tt) - t_grad[i + 1]))
                     ]
                 else:
                     grad_ampl_y = grad_y.amplitude
@@ -283,7 +286,7 @@ def parse_pulse(
             else:
                 if isinstance(grad_z, ExtTrapGrad | ArbitraryGrad):
                     grad_ampl_z = grad_z.waveform[
-                        torch.argmin(torch.abs(grad_z.tt - t_grad[i + 1]))
+                        torch.argmin(torch.abs(torch.as_tensor(grad_z.tt) - t_grad[i + 1]))
                     ]
                 else:
                     grad_ampl_z = grad_z.amplitude
@@ -448,14 +451,22 @@ def integrate_pulse(rf: RfPulse, t_start, t_end):
     t_start = float(t_start)
     t_end = float(t_end)
 
-    # Find where t_start and t_end are placed in time_shape
-    i_start = np.searchsorted(time_shape, t_start, side="left")
-    i_end = np.searchsorted(time_shape, t_end, side="right")
-    # Find the interpolated shape values at t_start and t_end
-    v_start = np.interp(t_start, time_shape, amp_shape, left=0, right=0)
-    v_end = np.interp(t_end, time_shape, amp_shape, left=0, right=0)
+    # Clamp the window to the support of the RF shape. Outside of it the RF is
+    # zero, but a trapezoidal segment joining a zero pad point to a non-zero
+    # boundary sample would contribute area that the pulse does not have
+    # (block pulses and most arbitrary RF are non-zero at their boundaries).
+    lo = max(t_start, float(time_shape[0]))
+    hi = min(t_end, float(time_shape[-1]))
+    if hi <= lo:
+        return torch.as_tensor(rf.flip_angle) * 0.0, rf.phase_offset + 0.0
+    # Find where lo and hi are placed in time_shape
+    i_start = np.searchsorted(time_shape, lo, side="left")
+    i_end = np.searchsorted(time_shape, hi, side="right")
+    # Find the interpolated shape values at lo and hi
+    v_start = np.interp(lo, time_shape, amp_shape)
+    v_end = np.interp(hi, time_shape, amp_shape)
     # Construct the shape of the integrated part of the pulse
-    time = [t_start] + time_shape[i_start:i_end].tolist() + [t_end]
+    time = [lo] + time_shape[i_start:i_end].tolist() + [hi]
     amp = [v_start] + amp_shape[i_start:i_end].tolist() + [v_end]
 
     # amp_shape is already scaled by the (detached) flip_angle, so its full

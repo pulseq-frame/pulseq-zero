@@ -5,6 +5,14 @@ All notable changes to pulseq-zero are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2]
+
+### Fixed
+
+- **RF dead time:** Clamp rf `delay` to be at least `system.rf_dead_time`.
+- **seq_convert torch tensors:** Convert parameters to tensors if needed.
+- **seq_convert pulse integration:** Fix in shape -> flip angle conversion.
+
 ## [1.0.1]
 
 ### Fixed

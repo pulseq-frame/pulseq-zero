@@ -43,6 +43,9 @@ def make_block_pulse(
             f"Invalid use parameter. Must be one of {valid_uses}. Passed: {use}"
         )
 
+    if delay < system.rf_dead_time:
+        delay = system.rf_dead_time
+
     if duration is None:
         if bandwidth is None:
             warn("Using default 4 ms duration for block pulse.")
