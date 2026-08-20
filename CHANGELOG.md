@@ -5,6 +5,12 @@ All notable changes to pulseq-zero are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3]
+
+### Fixed
+
+- **Heaviside:** use a differentiable heaviside during `seq_convert`
+
 ## [1.0.2]
 
 ### Fixed

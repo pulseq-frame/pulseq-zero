@@ -361,14 +361,14 @@ def split_gradm(grad, t):
 
 def integrate(grad, t):
     if isinstance(grad, TrapGrad):
-        # heaviside could be replaced with error function for differentiability
+        # The Heaviside terms only select which piece of the piecewise integral
+        # is active; they are not part of the integrand. torch.heaviside has no
+        # backward implementation, so the step is evaluated detached. Without
+        # this, optimizing anything that ends up in a time shape raises
+        # "derivative for aten::heaviside is not implemented".
         def h(x):
-            try:
-                return torch.heaviside(
-                    torch.as_tensor(x), torch.tensor(0.5, dtype=x.dtype)
-                )
-            except AttributeError:
-                return 0 if x < 0 else 1 if x > 0 else 0.5
+            x = torch.as_tensor(x)
+            return torch.heaviside(x.detach(), torch.tensor(0.5, dtype=x.dtype))
 
         # https://www.desmos.com/calculator/0q5co02ecm
 
