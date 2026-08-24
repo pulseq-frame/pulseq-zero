@@ -25,6 +25,22 @@ class Sequence:
     def __str__(self):
         return f"mr0 sequence adapter; ({len(self.blocks)}) blocks"
 
+    @property
+    def rf_raster_time(self) -> float:
+        return self.system.rf_raster_time
+
+    @property
+    def grad_raster_time(self) -> float:
+        return self.system.grad_raster_time
+
+    @property
+    def adc_raster_time(self) -> float:
+        return self.system.adc_raster_time
+
+    @property
+    def block_duration_raster(self) -> float:
+        return self.system.block_duration_raster
+
     # =========================================================================
     # Ported functions
     # =========================================================================

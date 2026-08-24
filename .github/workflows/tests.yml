@@ -1,4 +1,4 @@
-name: Adapter completeness check
+name: Tests
 
 on:
   push:
@@ -19,9 +19,15 @@ jobs:
       - name: Install dependencies
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install pypulseq MRzeroCore
+          pip install pypulseq MRzeroCore pytest matplotlib
           pip install --editable .
 
       - name: Run adapter completeness check
         run: python demo/test_pypulseq_sequence_all_funcs.py
+        working-directory: ${{ github.workspace }}
+
+      - name: Run test suite
+        run: pytest tests -q
+        env:
+          MPLBACKEND: Agg
         working-directory: ${{ github.workspace }}

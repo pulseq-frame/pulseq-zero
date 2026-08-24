@@ -89,9 +89,28 @@ class TrapGrad:
             self.rise_time / 2 + self.flat_time + self.fall_time / 2
         )
 
+    @area.setter
+    def area(self, value: Scalar):
+        # pypulseq stores the area as a plain field, and scripts that rescale a
+        # trapezoid write it back after changing the amplitude (write_epi_se_rs
+        # does exactly this). Here the area is derived, so the assignment is
+        # turned into the amplitude it implies - which leaves the event
+        # unchanged whenever the script keeps it consistent, and keeps
+        # amplitude, area and flat_area from ever disagreeing.
+        equivalent_time = self.rise_time / 2 + self.flat_time + self.fall_time / 2
+        self.amplitude = value / equivalent_time
+
     @property
     def flat_area(self) -> Scalar:
         return self.amplitude * self.flat_time
+
+    @flat_area.setter
+    def flat_area(self, value: Scalar):
+        if _n(self.flat_time) == 0.0:
+            raise ValueError(
+                "Cannot set flat_area on a trapezoid without a flat top"
+            )
+        self.amplitude = value / self.flat_time
 
     @property
     def duration(self) -> Scalar:
@@ -234,7 +253,7 @@ class Adc:
     def to_pulseq(self, system: Opts) -> SimpleNamespace:
         return pp.make_adc(
             num_samples=self.num_samples,
-            delay=_r(_n(self.delay), system.grad_raster_time),
+            delay=_r(_n(self.delay), system.rf_raster_time),
             dwell=_r(_n(self.dwell), system.adc_raster_time),
             freq_offset=_n(self.freq_offset),
             phase_offset=_n(self.phase_offset),

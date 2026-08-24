@@ -82,7 +82,7 @@ seq.to_mr0()   # differentiable — no edits to the sequence script
 
 The [demo/](demo/) workspace uses exactly this pattern: [demo/write_tse.py](demo/write_tse.py) is a near-verbatim copy of the PyPulseq 1.5 upstream TSE example and still imports `pypulseq`; [demo/main.py](demo/main.py) installs the hijack before importing it and gets a differentiable sequence for free.
 
-**Caveats.** The hijack must run before the downstream script is first imported. `from pypulseq.submod import X` (submodule access, e.g. `pypulseq.convert`) will fail unless pulseq-zero mirrors `submod` — top-level `import pypulseq` and `from pypulseq import foo` both work. Calls to entry points pulseq-zero deliberately doesn't wrap (adiabatic pulses, sigpy, SLR, etc.) still raise `NotImplementedError` with a named workaround (see §4).
+**Caveats.** The hijack must run before the downstream script is first imported. `from pypulseq.submod import X` (submodule access, e.g. `pypulseq.convert`) will fail unless pulseq-zero mirrors `submod` — top-level `import pypulseq` and `from pypulseq import foo` both work. [tests/redirect.py](tests/redirect.py) has a ~40-line import finder that serves those too, if you need one (`write_haste.py` imports that way). Calls to entry points pulseq-zero deliberately doesn't wrap (adiabatic pulses, sigpy, SLR, etc.) still raise `NotImplementedError` with a named workaround (see §4).
 
 ### Application
 
@@ -132,7 +132,10 @@ uv run demo/write_tse.py   # build a TSE sequence, plot it, and emit tse_pypulse
 
 Good to know:
 
-- **No unit test suite, no linter.** CI ([.github/workflows/adapter-check.yml](.github/workflows/adapter-check.yml)) runs [demo/test_pypulseq_sequence_all_funcs.py](demo/test_pypulseq_sequence_all_funcs.py) on every push/PR, an API completeness/parity probe against the coverage table below — not a numerical-correctness test suite. The two demo scripts are the closest thing to an acceptance gate: `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR, and `demo/write_tse.py` must produce a `.seq` file that round-trips byte-for-byte against the pypulseq reference (the unified adapter guarantees this; see `to_pypulseq()` in [wrapper/sequence.py](src/pulseqzero/wrapper/sequence.py)).
+- **Tests.** `uv run --group dev pytest` runs the suite in [tests/](tests/) — under a minute, nothing downloaded. It asks the three questions a user of the adapter has: the `.seq` file written through pulseq-zero is byte-identical to the one PyPulseq writes, `seq.to_mr0()` simulates the same signal as writing that file and importing it into MR-zero, and derivatives reach every parameter documented as differentiable and agree with a finite difference of the same loss. It runs over ten sequences, six of them **unmodified** upstream PyPulseq examples (`write_gre`, `write_haste`, `write_radial_gre`, `write_ute`, `write_epi_se_rs`, `write_tse`) executed against either module through the `sys.modules` redirect. See [tests/README.md](tests/README.md).
+- **Adapter completeness probe.** [demo/test_pypulseq_sequence_all_funcs.py](demo/test_pypulseq_sequence_all_funcs.py) exercises every entry point in the coverage table below and prints a side-by-side support matrix. It answers "is it there", the test suite answers "is it right".
+- **CI** ([.github/workflows/tests.yml](.github/workflows/tests.yml)) runs both on every push and pull request. No linter.
+- **The demos are the remaining acceptance gate.** `demo/main.py` must complete 30 Adam iterations with non-NaN data loss and monotonically-decreasing SAR.
 - **PyTorch CUDA pin.** [demo/pyproject.toml](demo/pyproject.toml) references the CUDA 12.6 wheel index (`download.pytorch.org/whl/cu126`). Swap that index URL (or remove it) if you're on CPU-only or a different CUDA version.
 - **Headless plotting.** `seq.plot()` forwards to pypulseq's plot and expects an interactive matplotlib backend. Export `MPLBACKEND=Agg` to run headless (Agg will render but not show — useful for CI-style runs).
 - **Falling back to plain pip.** If you'd rather skip uv, `pip install --editable .` from the root still works — but the root declares no runtime deps, so you need `pypulseq==1.5.0.post1`, `torch`, `MRzeroCore`, `numpy`, and `matplotlib` already in the env (a venv created with `--system-site-packages` and an existing MR-zero install is the path of least resistance).
@@ -184,20 +187,20 @@ This matches the universal pulseq idiom — create one `Opts` at the top, pass i
 
 ### Differentiability
 
-Gradients flow through the following quantities end-to-end (set `requires_grad=True` and they thread through to `seq.to_mr0()`):
+Gradients flow through the following quantities end-to-end (set `requires_grad=True` and they thread through to `seq.to_mr0()`). One parameter of each class below is checked against a finite difference of the same loss in [tests/test_differentiability.py](tests/test_differentiability.py), through sequence construction, conversion and PDG simulation:
 
 - RF `flip_angle`, `phase_offset`, `freq_offset`, `delay`
 - ADC `phase_offset`, `freq_offset`, `delay`, `dwell`
 - Gradient `amplitude` (trapezoidal and arbitrary), `rise_time`, `flat_time`, `fall_time`, `delay`
 - Block / repetition / TR / TE durations
 
-The following are **not** differentiable today (they affect pulse *shape*, which is materialized eagerly via PyPulseq):
+**RF pulse shapes are not differentiable.** The envelope is generated eagerly by PyPulseq at construction time, so it arrives here as plain numbers; the flip angle is reattached to it as a scalar factor, computed as the grad-free ratio of the integral over the pulse to the integral over the whole shape. That is what splits the pulse in two: the flip angle carries a derivative, the shape it is applied to does not. Consequently these do not:
 
 - Pulse shape parameters: `duration` when used to shape the envelope, `time_bw_product`, `apodization`, `center_pos`, `slice_thickness` (as it feeds shape generation), `dwell` for pulses
 - Gradient *waveform samples* for arbitrary gradients (the scale is differentiable, the samples aren't)
 - `Opts` fields (max_grad, rasters, dead times) — intentionally numeric
 
-Pulse-shape autograd can be added back per-factory via an opt-in flag if it ever becomes load-bearing.
+This matters only if you construct and optimize pulse shapes dynamically. Sinc, Gauss, block and custom envelopes are handled correctly as long as they stay static, and pulse-shape autograd can be added back per-factory via an opt-in flag if it ever becomes load-bearing.
 
 ### pTx `shim_array` (optional)
 

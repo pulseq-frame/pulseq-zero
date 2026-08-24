@@ -21,6 +21,16 @@ dependencies = [
     "pypulseq>=1.4",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    # write_ute.py imports pyplot at module level
+    "matplotlib",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [project.urls]
 Repository = "https://github.com/pulseq-frame/pulseq-zero"
 

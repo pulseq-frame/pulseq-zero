@@ -5,6 +5,27 @@ All notable changes to pulseq-zero are recorded in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Test suite** (`tests/`). 3 CI checks: the `.seq` file written through
+  pulseq-zero is byte-identical to one PyPulseq; `seq.to_mr0()` agrees with
+  writing the `.seq` and importing it into MR-zero; derivatives reach every
+  parameter documented as differentiable and match a finite difference of the
+  same loss.
+- **Raster times on `Sequence`** (`grad_raster_time`, `rf_raster_time`,
+  `adc_raster_time`, `block_duration_raster`), as pypulseq exposes them.
+  Example scripts read them off the sequence to round their delays.
+
+### Fixed
+
+- **ADC delay was rounded to the gradient raster on export.**
+- **`TrapGrad.area` / `flat_area` accept assignment.** They are derived
+  properties, scripts like `write_epi_se_rs` trigger an `AttributeError` on
+  write. Assignment now sets the amplitude the requested area implies, which
+  keeps amplitude, area and flat_area from ever disagreeing.
+
 ## [1.0.3]
 
 ### Fixed
